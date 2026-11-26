@@ -1,0 +1,439 @@
+{
+  "sections": [
+    {
+      "id": "egyptian",
+      "items": [
+        {
+          "key": "eg_short_1",
+          "text": "أهلا و سهلا بيكم يا جماعة",
+          "speaker": "Abdullah",
+          "lang": "arz",
+          "note": "قصير",
+          "voicetut": "eg_short_1_voicetut.wav",
+          "base": "eg_short_1_base.wav"
+        },
+        {
+          "key": "eg_short_2",
+          "text": "ما تيجي نخرج نتمشى شويه بعد الشغل.",
+          "speaker": "Yasmin",
+          "lang": "arz",
+          "note": "قصير",
+          "voicetut": "eg_short_2_voicetut.wav",
+          "base": "eg_short_2_base.wav"
+        },
+        {
+          "key": "eg_med_1",
+          "text": "النهاردَة الجو حلو اوي، فقلت اخرج اتمشى على الكورنيش واشرب حاجة ساقعة.",
+          "speaker": "Omnia",
+          "lang": "arz",
+          "note": "متوسط",
+          "voicetut": "eg_med_1_voicetut.wav",
+          "base": "eg_med_1_base.wav"
+        },
+        {
+          "key": "eg_med_2",
+          "text": "انا مكنتش عارف اقرر اروح المشوار ده ولا اقعد في البيت، بس في الاخر قررت اروح عادي.",
+          "speaker": "Abdelrahman",
+          "lang": "arz",
+          "note": "متوسط",
+          "voicetut": "eg_med_2_voicetut.wav",
+          "base": "eg_med_2_base.wav"
+        },
+        {
+          "key": "eg_long_1",
+          "text": "بصراحة اليوم كان طويل جدا ومليان مشاوير، صحيت بدري ورُحت الشغل، وبعد كده عديت على السوبر ماركت جبت شويةْ حاجات، ولما رجعت البيت لقيت ضيوف مستنينِّي، فقعدت معاهم لحد بالليل وانا تعبان بس مبسوط.",
+          "speaker": "Sayed",
+          "lang": "arz",
+          "note": "طويل",
+          "voicetut": "eg_long_1_voicetut.wav",
+          "base": "eg_long_1_base.wav"
+        }
+      ]
+    },
+    {
+      "id": "codeswitch",
+      "items": [
+        {
+          "key": "cs_short_1",
+          "text": "عندي presentation مهمة بُكْرَه الصبح.",
+          "speaker": "Sayed",
+          "lang": "arz",
+          "note": "قصير",
+          "voicetut": "cs_short_1_voicetut.wav",
+          "base": "cs_short_1_base.wav"
+        },
+        {
+          "key": "cs_short_2",
+          "text": "ابعتلي ال file على ال email.",
+          "speaker": "Esraa",
+          "lang": "arz",
+          "note": "قصير",
+          "voicetut": "cs_short_2_voicetut.wav",
+          "base": "cs_short_2_base.wav"
+        },
+        {
+          "key": "cs_med_1",
+          "text": "بصراحة ال feedback اللي جالي من ال manager كان كويس اوي، بس في شويةْ comments محتاجين نخلصها قبل ال deadline.",
+          "speaker": "Hanan",
+          "lang": "arz",
+          "note": "متوسط",
+          "voicetut": "cs_med_1_voicetut.wav",
+          "base": "cs_med_1_base.wav"
+        },
+        {
+          "key": "cs_med_2",
+          "text": "النهاردَة هنعمل review لل code وبعدها هنبدأ ال deployment على ال server الجديد.",
+          "speaker": "Abdullah",
+          "lang": "arz",
+          "note": "متوسط",
+          "voicetut": "cs_med_2_voicetut.wav",
+          "base": "cs_med_2_base.wav"
+        },
+        {
+          "key": "cs_long_1",
+          "text": "القصة دي اتكتبت في كتاب اسمه رحلات ماركو بولو 'The Travels of Marco Polo'، و الكتاب ده بيوري الناس ان العالم أكبر بكتير من اللي هما فاكرينُه، وان في حضارات وثقافات كتير حوالينا، فلازم نكون open-minded ونتعلم من بعض على طول.",
+          "speaker": "Sarah",
+          "lang": "arz",
+          "note": "طويل",
+          "voicetut": "cs_long_1_voicetut.wav",
+          "base": "cs_long_1_base.wav"
+        }
+      ]
+    },
+    {
+      "id": "english",
+      "items": [
+        {
+          "key": "en_short_1",
+          "text": "Hello, how are you doing today?",
+          "speaker": "Abdelrahman",
+          "lang": "en",
+          "note": "short",
+          "voicetut": "en_short_1_voicetut.wav",
+          "base": "en_short_1_base.wav"
+        },
+        {
+          "key": "en_med_1",
+          "text": "Thank you for calling our support line, how can I help you today?",
+          "speaker": "Yasmin",
+          "lang": "en",
+          "note": "medium",
+          "voicetut": "en_med_1_voicetut.wav",
+          "base": "en_med_1_base.wav"
+        },
+        {
+          "key": "en_long_1",
+          "text": "Welcome to our podcast. In today's episode we will talk about productivity, how to manage your time effectively, and a few simple habits that can make a big difference in your daily routine.",
+          "speaker": "Sayed",
+          "lang": "en",
+          "note": "long",
+          "voicetut": "en_long_1_voicetut.wav",
+          "base": "en_long_1_base.wav"
+        }
+      ]
+    },
+    {
+      "id": "normalization",
+      "items": [
+        {
+          "key": "norm_numbers",
+          "text": "كدة انا حسابي حوالي 450 جنيه و فلوس التوصيل 23 جنيه يبقا الاجمالي 473 جنيه عشان محدش ينصب عليا، هااا.",
+          "speaker": "Sayed",
+          "lang": "arz",
+          "note": "أرقام وعملات",
+          "voicetut": "norm_numbers_voicetut.wav",
+          "base": "norm_numbers_base.wav"
+        },
+        {
+          "key": "norm_time",
+          "text": "المَعاد الساعة 3:30، والاجتماع التاني 7:45، فمتتأخرش عشان الموضوع مهم.",
+          "speaker": "Asmaa",
+          "lang": "arz",
+          "note": "مواعيد",
+          "voicetut": "norm_time_voicetut.wav",
+          "base": "norm_time_base.wav"
+        },
+        {
+          "key": "norm_date",
+          "text": "الحلقة دي نزلت يوم 14/3/2024 وكان عليها مشاهدات كتير.",
+          "speaker": "Abdelrahman",
+          "lang": "arz",
+          "note": "تواريخ",
+          "voicetut": "norm_date_voicetut.wav",
+          "base": "norm_date_base.wav"
+        },
+        {
+          "key": "norm_phone",
+          "text": "ابعتلي رسالة على الرقم ده: 01147450639، لو في اي حاجة مستعجِلَة.",
+          "speaker": "Hossam",
+          "lang": "arz",
+          "note": "أرقام تليفون",
+          "voicetut": "norm_phone_voicetut.wav",
+          "base": "norm_phone_base.wav"
+        },
+        {
+          "key": "norm_email_url",
+          "text": "ابعتلي على mohamed.ali@gmail.com وادخُل على الموقع example.com/voicetut هتلاقي كل التفاصيل هناك.",
+          "speaker": "Esraa",
+          "lang": "arz",
+          "note": "إيميل وروابط",
+          "voicetut": "norm_email_url_voicetut.wav",
+          "base": "norm_email_url_base.wav"
+        },
+        {
+          "key": "norm_percent",
+          "text": "في خصم 25% على كل المنتجات، والتقييم وصل 99.5% من العملاء.",
+          "speaker": "Yasmin",
+          "lang": "arz",
+          "note": "نسب مئوية",
+          "voicetut": "norm_percent_voicetut.wav",
+          "base": "norm_percent_base.wav"
+        }
+      ]
+    },
+    {
+      "id": "speakers",
+      "items": [
+        {
+          "key": "spk_abdelrahman",
+          "text": "اهلا بيكم، انا الصوت بتاعي من VoiceTut، وممكن اقول لُكُم اي حاجة بالمصري وبال English كمان.",
+          "speaker": "Abdelrahman",
+          "lang": "arz",
+          "note": "Abdelrahman",
+          "voicetut": "spk_abdelrahman_voicetut.wav",
+          "base": "spk_abdelrahman_base.wav"
+        },
+        {
+          "key": "spk_abdullah",
+          "text": "اهلا بيكم، انا الصوت بتاعي من VoiceTut، وممكن اقول لُكُم اي حاجة بالمصري وبال English كمان.",
+          "speaker": "Abdullah",
+          "lang": "arz",
+          "note": "Abdullah",
+          "voicetut": "spk_abdullah_voicetut.wav",
+          "base": "spk_abdullah_base.wav"
+        },
+        {
+          "key": "spk_kamal",
+          "text": "اهلا بيكم، انا الصوت بتاعي من VoiceTut، وممكن اقول لُكُم اي حاجة بالمصري وبال English كمان.",
+          "speaker": "Kamal",
+          "lang": "arz",
+          "note": "Kamal",
+          "voicetut": "spk_kamal_voicetut.wav",
+          "base": "spk_kamal_base.wav"
+        },
+        {
+          "key": "spk_hossam",
+          "text": "اهلا بيكم، انا الصوت بتاعي من VoiceTut، وممكن اقول لُكُم اي حاجة بالمصري وبال English كمان.",
+          "speaker": "Hossam",
+          "lang": "arz",
+          "note": "Hossam",
+          "voicetut": "spk_hossam_voicetut.wav",
+          "base": "spk_hossam_base.wav"
+        },
+        {
+          "key": "spk_mohamed",
+          "text": "اهلا بيكم، انا الصوت بتاعي من VoiceTut، وممكن اقول لُكُم اي حاجة بالمصري وبال English كمان.",
+          "speaker": "Mohamed",
+          "lang": "arz",
+          "note": "Mohamed",
+          "voicetut": "spk_mohamed_voicetut.wav",
+          "base": "spk_mohamed_base.wav"
+        },
+        {
+          "key": "spk_omar",
+          "text": "اهلا بيكم، انا الصوت بتاعي من VoiceTut، وممكن اقول لُكُم اي حاجة بالمصري وبال English كمان.",
+          "speaker": "Omar",
+          "lang": "arz",
+          "note": "Omar",
+          "voicetut": "spk_omar_voicetut.wav",
+          "base": "spk_omar_base.wav"
+        },
+        {
+          "key": "spk_sayed",
+          "text": "اهلا بيكم، انا الصوت بتاعي من VoiceTut، وممكن اقول لُكُم اي حاجة بالمصري وبال English كمان.",
+          "speaker": "Sayed",
+          "lang": "arz",
+          "note": "Sayed",
+          "voicetut": "spk_sayed_voicetut.wav",
+          "base": "spk_sayed_base.wav"
+        },
+        {
+          "key": "spk_zaki",
+          "text": "اهلا بيكم، انا الصوت بتاعي من VoiceTut، وممكن اقول لُكُم اي حاجة بالمصري وبال English كمان.",
+          "speaker": "Zaki",
+          "lang": "arz",
+          "note": "Zaki",
+          "voicetut": "spk_zaki_voicetut.wav",
+          "base": "spk_zaki_base.wav"
+        },
+        {
+          "key": "spk_asmaa",
+          "text": "اهلا بيكم، انا الصوت بتاعي من VoiceTut، وممكن اقول لُكُم اي حاجة بالمصري وبال English كمان.",
+          "speaker": "Asmaa",
+          "lang": "arz",
+          "note": "Asmaa",
+          "voicetut": "spk_asmaa_voicetut.wav",
+          "base": "spk_asmaa_base.wav"
+        },
+        {
+          "key": "spk_esraa",
+          "text": "اهلا بيكم، انا الصوت بتاعي من VoiceTut، وممكن اقول لُكُم اي حاجة بالمصري وبال English كمان.",
+          "speaker": "Esraa",
+          "lang": "arz",
+          "note": "Esraa",
+          "voicetut": "spk_esraa_voicetut.wav",
+          "base": "spk_esraa_base.wav"
+        },
+        {
+          "key": "spk_hanan",
+          "text": "اهلا بيكم، انا الصوت بتاعي من VoiceTut، وممكن اقول لُكُم اي حاجة بالمصري وبال English كمان.",
+          "speaker": "Hanan",
+          "lang": "arz",
+          "note": "Hanan",
+          "voicetut": "spk_hanan_voicetut.wav",
+          "base": "spk_hanan_base.wav"
+        },
+        {
+          "key": "spk_sarah",
+          "text": "اهلا بيكم، انا الصوت بتاعي من VoiceTut، وممكن اقول لُكُم اي حاجة بالمصري وبال English كمان.",
+          "speaker": "Sarah",
+          "lang": "arz",
+          "note": "Sarah",
+          "voicetut": "spk_sarah_voicetut.wav",
+          "base": "spk_sarah_base.wav"
+        },
+        {
+          "key": "spk_yasmin",
+          "text": "اهلا بيكم، انا الصوت بتاعي من VoiceTut، وممكن اقول لُكُم اي حاجة بالمصري وبال English كمان.",
+          "speaker": "Yasmin",
+          "lang": "arz",
+          "note": "Yasmin",
+          "voicetut": "spk_yasmin_voicetut.wav",
+          "base": "spk_yasmin_base.wav"
+        },
+        {
+          "key": "spk_aly",
+          "text": "اهلا بيكم، انا الصوت بتاعي من VoiceTut، وممكن اقول لُكُم اي حاجة بالمصري وبال English كمان.",
+          "speaker": "Aly",
+          "lang": "arz",
+          "note": "Aly",
+          "voicetut": "spk_aly_voicetut.wav",
+          "base": "spk_aly_base.wav"
+        },
+        {
+          "key": "spk_omnia",
+          "text": "اهلا بيكم، انا الصوت بتاعي من VoiceTut، وممكن اقول لُكُم اي حاجة بالمصري وبال English كمان.",
+          "speaker": "Omnia",
+          "lang": "arz",
+          "note": "Omnia",
+          "voicetut": "spk_omnia_voicetut.wav",
+          "base": "spk_omnia_base.wav"
+        }
+      ]
+    },
+    {
+      "id": "customer_service",
+      "items": [
+        {
+          "key": "cust_f_1",
+          "text": "مساء الخير مع حضرتك ياسمين من شركة VoiceTut، ممكن اتشرف باسم حضرتك؟",
+          "speaker": "Yasmin",
+          "lang": "arz",
+          "note": "خدمة عملاء",
+          "voicetut": "cust_f_1_voicetut.wav"
+        },
+        {
+          "key": "cust_f_2",
+          "text": "اهلا بحضرتك، شكرا لاتصالك بخدمة عملاء VoiceTut، ازاي اقدر اساعد حضرتك النهارده؟",
+          "speaker": "Yasmin",
+          "lang": "arz",
+          "note": "خدمة عملاء",
+          "voicetut": "cust_f_2_voicetut.wav"
+        },
+        {
+          "key": "cust_f_3",
+          "text": "تحت امرك، هسجل الشكوى وهيتم التواصل مع حضرتك خلال 24 ساعة على رقم حضرتك اللي متسجل عندنا.",
+          "speaker": "Yasmin",
+          "lang": "arz",
+          "note": "خدمة عملاء",
+          "voicetut": "cust_f_3_voicetut.wav"
+        },
+        {
+          "key": "cust_f_4",
+          "text": "للأسف الخدمة دي مش متاحة حاليا، بس ممكن احول حضرتك لل department المسئول يساعد حضرتك.",
+          "speaker": "Yasmin",
+          "lang": "arz",
+          "note": "خدمة عملاء",
+          "voicetut": "cust_f_4_voicetut.wav"
+        },
+        {
+          "key": "cust_m_1",
+          "text": "صباح الخير، معاك احمد من خدمة عملاء شركة VoiceTut، ممكن اعرف رقم الطلب بتاع حضرتك؟",
+          "speaker": "Abdullah",
+          "lang": "arz",
+          "note": "خدمة عملاء",
+          "voicetut": "cust_m_1_voicetut.wav"
+        },
+        {
+          "key": "cust_m_2",
+          "text": "تمام يا فندم، تم تأكيد الحجز، وهتوصلك رساله فيها كل التفاصيل على ال WhatsApp.",
+          "speaker": "Abdullah",
+          "lang": "arz",
+          "note": "خدمة عملاء",
+          "voicetut": "cust_m_2_voicetut.wav"
+        },
+        {
+          "key": "cust_m_3",
+          "text": "بعتذر لحضرتك عن التأخير، فريق الصيانه في الطريق وهيوصل خلال نص ساعة بالكتير.",
+          "speaker": "Abdullah",
+          "lang": "arz",
+          "note": "خدمة عملاء",
+          "voicetut": "cust_m_3_voicetut.wav"
+        },
+        {
+          "key": "cust_m_4",
+          "text": "لو حضرتك محتاج اي مساعده تَانْيَه، احنا موجودين 24 ساعة، وشكرا لتعاملك مع VoiceTut.",
+          "speaker": "Abdullah",
+          "lang": "arz",
+          "note": "خدمة عملاء",
+          "voicetut": "cust_m_4_voicetut.wav"
+        }
+      ]
+    },
+    {
+      "id": "cloning",
+      "items": [
+        {
+          "key": "clone_1",
+          "text": "انا بجرب استنساخ الصوت ده، وان شاء الله يطلع حلو وطبيعي زي ما احنا عايزين.",
+          "speaker": null,
+          "lang": "arz",
+          "note": "استنساخ",
+          "voicetut": "clone_1_voicetut.wav",
+          "base": "clone_1_base.wav",
+          "reference": "zero_shot_reference.mp3"
+        },
+        {
+          "key": "clone_2",
+          "text": "ال demo ده بيوضح قد ايه ال model بقا شاطر في اللهجة المصرية وال code-switching كمان.",
+          "speaker": null,
+          "lang": "arz",
+          "note": "استنساخ + code-switching",
+          "voicetut": "clone_2_voicetut.wav",
+          "base": "clone_2_base.wav",
+          "reference": "zero_shot_reference.mp3"
+        },
+        {
+          "key": "clone_3",
+          "text": "أول شغل ليا بعد التخرج كنت intern في OIE اللي هي Orange Innovation Egypt و بعدها بكام شهر جالي offer من شركة اسمها intelance و دي كانت شركة في لندن و كانت شغالة في مجال ال Healthtech و كنت مبسوط اوي وقتها الحقيقة يعني شغال remotely وبْتاع و بتقبَض كويس بس للأسف حصلت ظروف و اضطريت ان انا امشي بس بعد كدة بقا ربنا كرمني و I've joined Applied Innovation Center او اللي هو AIC و هنا بقا كانت بداية تعاملي مع ال Speech AI و ال Arabic NLP بشكل أعمق الحقيقة.",
+          "speaker": null,
+          "lang": "arz",
+          "note": "استنساخ صوت حقيقي (طويل) / real-voice clone (long)",
+          "voicetut": "clone_3_voicetut.wav",
+          "base": "clone_3_base.wav",
+          "reference": "zero_shot_reference_me.wav"
+        }
+      ]
+    }
+  ]
+}

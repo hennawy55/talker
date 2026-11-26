@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VoiceTut-TTS — Audio Demos</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&family=Inter:wght@400;600;700;800&display=swap"
+    rel="stylesheet" />
+  <style>
+    :root {
+      --blue: #2f6bff;
+      --blue-bright: #4f86ff;
+      --blue-dim: rgba(47, 107, 255, .14);
+      --bg: #000;
+      --surface: #0f0f12;
+      --surface2: #16161b;
+      --border: #222228;
+      --text: #f5f6f8;
+      --muted: #8a8d96;
+      --amber: #ffc04d;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Cairo', 'Inter', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding-bottom: 60px;
+    }
+
+    .wrap {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 0 20px;
+    }
+
+    header.hero {
+      text-align: center;
+      padding: 48px 20px 26px;
+    }
+
+    header.hero img {
+      width: 100%;
+      max-width: 960px;
+      border-radius: 22px;
+      box-shadow: 0 24px 70px rgba(0, 0, 0, .7);
+      margin-bottom: 24px;
+    }
+
+    header.hero h1 {
+      font-size: 34px;
+      font-weight: 800;
+      letter-spacing: -.5px;
+    }
+
+    header.hero h1 .accent {
+      background: linear-gradient(90deg, #4f86ff, #8ab0ff);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    header.hero p {
+      color: var(--muted);
+      margin-top: 10px;
+      font-size: 16px;
+    }
+
+    .links {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin: 22px 0 8px;
+    }
+
+    .links a {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 11px 20px;
+      border-radius: 30px;
+      font-weight: 700;
+      font-size: 14px;
+      text-decoration: none;
+      border: 1px solid var(--border);
+      color: var(--text);
+      background: var(--surface2);
+      transition: all .2s ease;
+    }
+
+    .links a:hover {
+      border-color: var(--blue);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px var(--blue-dim);
+    }
+
+    .links a.primary {
+      background: var(--blue);
+      border-color: transparent;
+    }
+
+    .links a.primary:hover {
+      background: var(--blue-bright);
+    }
+
+    /* sticky section nav */
+    .nav {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: rgba(0, 0, 0, .82);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 0;
+      margin-bottom: 10px;
+    }
+
+    .nav .wrap {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .nav a {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--muted);
+      text-decoration: none;
+      padding: 7px 14px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      transition: all .2s;
+    }
+
+    .nav a:hover {
+      color: var(--text);
+      border-color: var(--blue);
+    }
+
+    section {
+      margin-top: 40px;
+      scroll-margin-top: 70px;
+    }
+
+    section h2 {
+      font-size: 22px;
+      font-weight: 800;
+      margin-bottom: 4px;
+    }
+
+    section .sub {
+      color: var(--muted);
+      font-size: 14px;
+      margin-bottom: 18px;
+    }
+
+    .caution {
+      background: rgba(255, 180, 60, .08);
+      border: 1px solid rgba(255, 180, 60, .35);
+      border-radius: 14px;
+      padding: 14px 18px;
+      margin-bottom: 18px;
+      font-size: 14px;
+      line-height: 1.8;
+      color: #f3d9a6;
+    }
+    .caution b { color: var(--amber); }
+
+    .sample {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 18px 20px;
+      margin-bottom: 16px;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, .4);
+    }
+
+    .sample .meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+
+    .badge {
+      font-size: 11px;
+      font-weight: 800;
+      padding: 4px 11px;
+      border-radius: 16px;
+    }
+
+    .badge.note {
+      background: var(--blue-dim);
+      color: var(--blue-bright);
+      border: 1px solid rgba(47, 107, 255, .3);
+    }
+
+    .badge.spk {
+      background: rgba(160, 160, 170, .12);
+      color: #cfd3da;
+      border: 1px solid #33333b;
+    }
+
+    .badge.lang-arz {
+      background: rgba(76, 175, 80, .12);
+      color: #7bd17f;
+      border: 1px solid rgba(76, 175, 80, .3);
+    }
+
+    .badge.lang-en {
+      background: rgba(255, 180, 60, .12);
+      color: var(--amber);
+      border: 1px solid rgba(255, 180, 60, .3);
+    }
+
+    .sample .text {
+      font-size: 16px;
+      line-height: 1.85;
+      margin: 6px 0 16px;
+    }
+
+    .ab {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    @media (max-width:680px) {
+      .ab {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .ab.single {
+      grid-template-columns: 1fr;
+    }
+
+    .col {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 12px 14px;
+    }
+
+    .col.ours {
+      border-color: rgba(47, 107, 255, .4);
+      box-shadow: 0 0 0 1px rgba(47, 107, 255, .15) inset;
+    }
+
+    .col .label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 800;
+      font-size: 13px;
+      margin-bottom: 9px;
+    }
+
+    .col .dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+    }
+
+    .col.ours .dot {
+      background: var(--blue);
+    }
+
+    .col.base .dot {
+      background: #777;
+    }
+
+    .col.ref .dot {
+      background: var(--amber);
+    }
+
+    audio {
+      width: 100%;
+      height: 40px;
+      filter: invert(.92) hue-rotate(180deg);
+      border-radius: 8px;
+    }
+
+    footer {
+      text-align: center;
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 60px;
+    }
+
+    footer a {
+      color: var(--blue-bright);
+      text-decoration: none;
+    }
+
+    #loading {
+      text-align: center;
+      color: var(--muted);
+      padding: 40px;
+    }
+  </style>
+</head>
+
+<body>
+  <header class="hero">
+    <div class="wrap">
+      <img src="banner.png" alt="VoiceTut-TTS" />
+      <h1>VoiceTut<span class="accent">-TTS</span> — عينات صوتية</h1>
+      <p>قارن صوت VoiceTut-TTS (المُحسَّن للمصري) بالموديل الأساسي OmniVoice<br />
+        Compare VoiceTut-TTS vs. base OmniVoice — Egyptian Arabic, code-switching & English</p>
+      <div class="links">
+        <a class="primary" href="https://huggingface.co/spaces/mohammedaly22/VoiceTut-TTS">🚀 جرّب الموديل / Live
+          Demo</a>
+        <a href="https://huggingface.co/mohammedaly22/VoiceTut-TTS">🤗 Model</a>
+        <a href="https://github.com/MohammedAly22/VoiceTuT-TTS">💻 GitHub</a>
+        <a href="https://pypi.org/project/voicetut-tts/">📦 PyPI</a>
+      </div>
+    </div>
+  </header>
+
+  <nav class="nav">
+    <div class="wrap" id="navLinks"></div>
+  </nav>
+
+  <main class="wrap" id="content">
+    <div id="loading">… loading samples</div>
+  </main>
+
+  <footer>
+    VoiceTut-TTS · <a href="https://github.com/MohammedAly22/VoiceTuT-TTS">GitHub</a> ·
+    <a href="https://huggingface.co/mohammedaly22/VoiceTut-TTS">HuggingFace</a> ·
+    شقيق <a href="https://github.com/MohammedAly22/qwencleo-asr">QwenCleo-ASR</a>
+  </footer>
+
+  <script>
+    // Section display metadata (Arabic + English titles)
+    const SECTION_META = {
+      egyptian: { title: "🗣️ مصري خالص / Pure Egyptian Arabic", sub: "جمل مصرية طبيعية — قصير، متوسط، طويل." },
+      codeswitch: { title: "🔀 تبديل اللغة / Code-Switching", sub: "مصري + إنجليزي — التحدي الأساسي للموديل." },
+      english: { title: "🇬🇧 إنجليزي / Pure English", sub: "النطق الإنجليزي." },
+      normalization: { title: "🔢 تطبيع النص / Text Normalization", sub: "أرقام، تواريخ، مواعيد، تليفونات، إيميلات، نسب." },
+      speakers: { title: "🎙️ كل الأصوات / Every Voice", sub: "نفس الجملة بكل صوت من الأصوات الجاهزة." },
+      customer_service: { title: "📞 خدمة العملاء / Customer Service", sub: "سيناريوهات خدمة عملاء (VoiceTut فقط)." },
+      cloning: { title: "🧬 استنساخ صوت / Zero-shot Cloning", sub: "استنساخ من مرجع قصير." },
+    };
+    // cache-buster: a version string derived from the manifest content (below). Re-generated
+    // samples (same filename, new content) change the manifest -> new VER -> fresh fetch.
+    // Stable across reloads while content is unchanged, so the browser cache still works.
+    let VER = "0";
+    const A = (f) => `audio/${f}?v=${VER}`;
+
+    function audioCol(cls, label, file) {
+      return `<div class="col ${cls}"><div class="label"><span class="dot"></span>${label}</div>
+        <audio controls preload="none"><source src="${A(file)}" type="audio/wav"></audio></div>`;
+    }
+
+    function sampleCard(it) {
+      const langBadge = it.lang === "en"
+        ? '<span class="badge lang-en">English</span>'
+        : '<span class="badge lang-arz">مصري</span>';
+      const spk = it.speaker ? `<span class="badge spk">${it.speaker}</span>` : "";
+      let cols = audioCol("ours", "VoiceTut-TTS", it.voicetut);
+      if (it.base) cols += audioCol("base", "OmniVoice (base)", it.base);
+      if (it.reference) cols += audioCol("ref", "Reference", it.reference);
+      const single = !(it.base || it.reference);
+      return `<div class="sample">
+        <div class="meta">${langBadge}${spk}<span class="badge note">${it.note || ""}</span></div>
+        <div class="text">${it.text}</div>
+        <div class="ab ${single ? "single" : ""}">${cols}</div>
+      </div>`;
+    }
+
+    // small stable hash of a string (for the cache-buster version)
+    function hashStr(s) {
+      let h = 5381;
+      for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+      return (h >>> 0).toString(36);
+    }
+
+    async function load() {
+      let manifest, raw;
+      try {
+        // fetch the manifest itself fresh (no-store) so VER always reflects current content
+        raw = await (await fetch("audio/manifest.json", { cache: "no-store" })).text();
+        manifest = JSON.parse(raw);
+        VER = hashStr(raw);          // version = hash of manifest -> changes only when samples change
+      }
+      catch (e) {
+        document.getElementById("content").innerHTML =
+          '<div id="loading">لسه مفيش عينات — شغّل <code>generate_samples.py</code> وارفع docs/audio/.<br/>'
+          + 'No samples yet — run <code>generate_samples.py</code> and push <code>docs/audio/</code>.</div>';
+        return;
+      }
+      const content = document.getElementById("content");
+      const nav = document.getElementById("navLinks");
+      content.innerHTML = ""; nav.innerHTML = "";
+      const CAUTION = {
+        cloning: '⚠️ <b>تنويه أخلاقي:</b> عينات استنساخ الصوت دي الغرض منها إظهار جودة الموديل وحالات '
+          + 'الاستخدام المفيدة فقط (زي المساعدات الصوتية والمحتوى التعليمي). ممنوع استخدام استنساخ '
+          + 'الصوت لانتحال شخصية أي حد أو خداع أو إيذاء أي شخص.<br/>'
+          + '<span dir="ltr"><b>Ethical note:</b> these voice-cloning samples are for demonstrating quality '
+          + 'and beneficial use cases only — never to impersonate, deceive, or harm anyone.</span>',
+      };
+      manifest.sections.forEach((sec) => {
+        const meta = SECTION_META[sec.id] || { title: sec.id, sub: "" };
+        nav.insertAdjacentHTML("beforeend", `<a href="#${sec.id}">${meta.title.replace(/^[^ ]+ /, "")}</a>`);
+        const cards = sec.items.map(sampleCard).join("");
+        const caution = CAUTION[sec.id] ? `<div class="caution">${CAUTION[sec.id]}</div>` : "";
+        content.insertAdjacentHTML("beforeend",
+          `<section id="${sec.id}"><h2>${meta.title}</h2><p class="sub">${meta.sub}</p>${caution}${cards}</section>`);
+      });
+    }
+    load();
+  </script>
+</body>
+
+</html>

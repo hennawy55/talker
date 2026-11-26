@@ -1,0 +1,20 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ipynb_checkpoints/
+out/
+*.wav
+!reference_speakers/*.wav
+!docs/audio/*.wav
+.env
+.venv/
+reference_audio/
+web/node_modules/
+web/dist/
+
+# kept local, not in the public repo
+PUBLISH.md
+generate_samples.py
