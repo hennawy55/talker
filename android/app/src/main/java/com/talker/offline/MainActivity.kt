@@ -490,7 +490,7 @@ class MainActivity : Activity() {
     }
 
     private fun downloadModelToExternal(uri:Uri) {
-        if (modelDownloading) return
+        if (modelDownloading || rejectIfTaskRunning()) return
         modelDownloading = true
         beginLongTask("تنزيل نموذج الصوت", "data")
         modelProgress.progress = 0
@@ -567,7 +567,7 @@ class MainActivity : Activity() {
     }
 
     private fun importModel(uri:Uri) {
-        if (modelDownloading) return
+        if (modelDownloading || rejectIfTaskRunning()) return
         modelDownloading = true
         beginLongTask("استيراد نموذج الصوت", "data")
         modelStatus.text = "جارٍ استيراد ملف النموذج..."
@@ -652,6 +652,7 @@ class MainActivity : Activity() {
         } catch (_:Exception) { false }
     }
     private fun loadEngine() {
+        if (rejectIfTaskRunning()) return
         if (modelDownloading || modelLoading || !isValidModel(modelFile(),true)) {
             if (!modelLoading && !modelDownloading) engineStatus.text = "استورد ملف النموذج أو نزّله أولًا"
             return
@@ -862,7 +863,7 @@ class MainActivity : Activity() {
         toast("تم اختيار الصوت التلقائي")
     }
     private fun requestReferenceRecording() {
-        if (recordingReference) return
+        if (recordingReference || rejectIfTaskRunning()) return
         if (Build.VERSION.SDK_INT >= 23 &&
             checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), REQUEST_RECORD_AUDIO)
@@ -1035,6 +1036,12 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun rejectIfTaskRunning():Boolean {
+        if (!foregroundTaskRunning) return false
+        toast("هناك عملية أخرى قيد التنفيذ. انتظر اكتمالها قبل بدء عملية جديدة.")
+        return true
+    }
+
     private fun beginLongTask(title:String, kind:String) {
         foregroundTaskRunning = true
         try {
@@ -1088,6 +1095,7 @@ class MainActivity : Activity() {
     private fun generateAudio() {
         val text = textInput.text.toString().trim()
         if (text.isEmpty()) { textInput.error = "اكتب النص أولًا"; return }
+        if (rejectIfTaskRunning()) return
         if (!engineReady) { toast("حمّل النموذج وجهّز المحرك أولًا"); showPage(0); return }
         val ref = activeVoiceSamples
         val transcript = activeReferenceText
