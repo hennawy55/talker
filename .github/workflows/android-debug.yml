@@ -47,6 +47,7 @@ jobs:
             -DAUDIOCPP_MODEL_SET=custom \
             -DAUDIOCPP_MODELS=omnivoice \
             -DENGINE_ENABLE_OPENMP=OFF \
+            -DGGML_OPENMP=OFF \
             -DENGINE_ENABLE_NATIVE_CPU=OFF \
             -DENGINE_ENABLE_CUDA=OFF \
             -DENGINE_ENABLE_HIP=OFF \
