@@ -1,0 +1,26 @@
+cmake_minimum_required(VERSION 3.22.1)
+project(talker_jni LANGUAGES C CXX)
+
+if(NOT DEFINED AUDIOCPP_SOURCE_DIR OR NOT EXISTS "${AUDIOCPP_SOURCE_DIR}/CMakeLists.txt")
+    message(FATAL_ERROR "AUDIOCPP_SOURCE_DIR must point to the pinned audio.cpp checkout")
+endif()
+
+set(AUDIOCPP_BUILD_C_API ON CACHE BOOL "" FORCE)
+set(AUDIOCPP_MODEL_SET custom CACHE STRING "" FORCE)
+set(AUDIOCPP_MODELS omnivoice CACHE STRING "" FORCE)
+set(ENGINE_ENABLE_OPENMP OFF CACHE BOOL "" FORCE)
+set(ENGINE_ENABLE_NATIVE_CPU OFF CACHE BOOL "" FORCE)
+set(ENGINE_ENABLE_CUDA OFF CACHE BOOL "" FORCE)
+set(ENGINE_ENABLE_HIP OFF CACHE BOOL "" FORCE)
+set(ENGINE_ENABLE_VULKAN OFF CACHE BOOL "" FORCE)
+set(ENGINE_ENABLE_METAL OFF CACHE BOOL "" FORCE)
+set(ENGINE_ENABLE_SYCL OFF CACHE BOOL "" FORCE)
+set(ENGINE_ENABLE_WEBGPU OFF CACHE BOOL "" FORCE)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
+add_subdirectory("${AUDIOCPP_SOURCE_DIR}" audio_cpp)
+
+add_library(talker_jni SHARED native-lib.cpp)
+target_include_directories(talker_jni PRIVATE "${AUDIOCPP_SOURCE_DIR}/include")
+target_compile_features(talker_jni PRIVATE cxx_std_17)
+target_link_libraries(talker_jni PRIVATE audiocpp log)
