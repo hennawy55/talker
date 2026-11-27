@@ -406,6 +406,16 @@ class MainActivity : Activity() {
         customVoiceStatus = label("لم يتم اختيار تسجيل خاص",12,muted,false,7)
         custom.addView(customVoiceStatus)
         customTranscriptInput = editField("اكتب النص المنطوق في التسجيل كما قيل",3)
+        customTranscriptInput.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s:CharSequence?, start:Int, count:Int, after:Int) {}
+            override fun onTextChanged(s:CharSequence?, start:Int, before:Int, count:Int) {
+                if (activeVoiceKey == "custom") {
+                    activeReferenceText = s?.toString()?.trim()
+                    preferences.edit().putString("custom_reference_text", s?.toString() ?: "").apply()
+                }
+            }
+            override fun afterTextChanged(s:android.text.Editable?) {}
+        })
         custom.addView(customTranscriptInput,fullWidth().apply { topMargin = dp(8) })
         val useCustom = primaryButton("استخدام الصوت المستنسخ")
         useCustom.setOnClickListener { selectCustomVoice() }
@@ -551,7 +561,7 @@ class MainActivity : Activity() {
                     if (succeeded) "تم حفظ النموذج داخل التطبيق والنسخة الخارجية." else "لم يكتمل تنزيل النموذج.",
                     succeeded
                 )
-                if (succeeded) runOnUiThread { loadEngine() }
+                if (succeeded) runOnUiThread { if (!isFinishing) loadEngine() }
             }
         }
     }
@@ -610,7 +620,7 @@ class MainActivity : Activity() {
                     if (succeeded) "تم استيراد ملف النموذج والتحقق منه." else "فشل استيراد ملف GGUF.",
                     succeeded
                 )
-                if (succeeded) runOnUiThread { loadEngine() }
+                if (succeeded) runOnUiThread { if (!isFinishing) loadEngine() }
             }
         }
     }
@@ -912,9 +922,9 @@ class MainActivity : Activity() {
                 customVoiceSamples = parsed.first
                 customVoiceRate = parsed.second
                 customVoiceChannels = parsed.third
-                customVoiceStatus.text = "تم تسجيل صوتك — 15 ثانية (" + file.length() / 1024 + " KB)"
                 saved = true
                 runOnUiThread {
+                    customVoiceStatus.text = "تم تسجيل صوتك — 15 ثانية (" + file.length() / 1024 + " KB)"
                     recordStatusText.text = "اكتمل التسجيل. اكتب النص المطابق ثم اضغط استخدام الصوت المستنسخ."
                 }
             } catch (e: Exception) {
@@ -1030,7 +1040,6 @@ class MainActivity : Activity() {
         try {
             TalkerTaskService.start(applicationContext, title, kind)
         } catch (e: Exception) {
-            foregroundTaskRunning = false
             toast("تعذر تشغيل الخدمة الأمامية: " + (e.message ?: "خطأ غير معروف"))
         }
     }
@@ -1185,7 +1194,6 @@ class MainActivity : Activity() {
         } catch (e:Exception) { toast("تعذرت مشاركة الصوت: " + e.message) }
     }
 
-    @Deprecated("Legacy activity result for broad Android compatibility")
     override fun onStart() {
         super.onStart()
         appIsInBackground = false
@@ -1201,6 +1209,7 @@ class MainActivity : Activity() {
         super.onStop()
     }
 
+    @Deprecated("Legacy activity result for broad Android compatibility")
     override fun onActivityResult(requestCode:Int,resultCode:Int,data:Intent?) {
         super.onActivityResult(requestCode,resultCode,data)
         if (resultCode != RESULT_OK) return
