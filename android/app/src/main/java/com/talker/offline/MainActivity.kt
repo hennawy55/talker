@@ -2,6 +2,11 @@ package com.talker.offline
 
 import android.app.Activity
 import android.content.Intent
+import android.content.ContentProvider
+import android.content.ContentValues
+import android.database.Cursor
+import android.os.ParcelFileDescriptor
+import java.io.FileNotFoundException
 import android.media.MediaPlayer
 import android.net.Uri
 import android.os.Bundle
@@ -119,6 +124,12 @@ class MainActivity : Activity() {
         val playback = actionButton("تشغيل آخر ملف صوتي")
         playback.setOnClickListener { playLastOutput() }
         root.addView(playback, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
+        val saveAudio = actionButton("حفظ الصوت في الملفات")
+        saveAudio.setOnClickListener { saveLastOutput() }
+        root.addView(saveAudio, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
+        val shareAudio = actionButton("مشاركة الصوت")
+        shareAudio.setOnClickListener { shareLastOutput() }
+        root.addView(shareAudio, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
         root.addView(label("الخصوصية: التسجيل المرجعي والنصوص وملفات الصوت تبقى داخل مساحة التطبيق الخاصة.", 13, muted, false, 20))
         setContentView(scroll)
     }
@@ -192,15 +203,42 @@ class MainActivity : Activity() {
     @Deprecated("Legacy activity result for broad Android compatibility")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == 41 && resultCode == RESULT_OK) {
-            val uri = data?.data ?: return
+        if (resultCode != RESULT_OK) return
+        val uri = data?.data ?: return
+
+        if (requestCode == 41) {
             executor.execute {
                 try {
-                    val parsed = contentResolver.openInputStream(uri)?.use { readWav(it) } ?: error("تعذر قراءة الملف")
-                    voiceSamples = parsed.first; voiceRate = parsed.second; voiceChannels = parsed.third
+                    val parsed = contentResolver.openInputStream(uri)?.use { readWav(it) }
+                        ?: error("تعذر قراءة الملف")
+                    voiceSamples = parsed.first
+                    voiceRate = parsed.second
+                    voiceChannels = parsed.third
                     runOnUiThread { chooseVoice.text = "تم اختيار التسجيل المرجعي ✓" }
                 } catch (e: Exception) {
-                    runOnUiThread { chooseVoice.text = "فشل فتح التسجيل: ${e.message}" }
+                    runOnUiThread { chooseVoice.text = "فشل فتح التسجيل: \${e.message}" }
+                }
+            }
+        } else if (requestCode == 42) {
+            val source = findLastOutput()
+            if (source == null) {
+                Toast.makeText(this, "ملف الصوت غير موجود", Toast.LENGTH_SHORT).show()
+                return
+            }
+            executor.execute {
+                try {
+                    val target = contentResolver.openOutputStream(uri, "w")
+                        ?: error("تعذر فتح مكان الحفظ")
+                    target.use { output ->
+                        source.inputStream().use { input -> input.copyTo(output) }
+                    }
+                    runOnUiThread {
+                        Toast.makeText(this, "تم حفظ الملف الصوتي بنجاح", Toast.LENGTH_LONG).show()
+                    }
+                } catch (e: Exception) {
+                    runOnUiThread {
+                        Toast.makeText(this, "فشل حفظ الصوت: \${e.message}", Toast.LENGTH_LONG).show()
+                    }
                 }
             }
         }
@@ -233,14 +271,69 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun findLastOutput(): File? {
+        return lastOutput?.takeIf { it.isFile }
+            ?: filesDir.listFiles()
+                ?.filter { it.name.startsWith("audio-") && it.extension == "wav" }
+                ?.maxByOrNull { it.lastModified() }
+    }
+
     private fun playLastOutput() {
-        val file = lastOutput ?: filesDir.listFiles()?.filter { it.name.startsWith("audio-") && it.extension == "wav" }?.maxByOrNull { it.lastModified() }
-        if (file == null || !file.exists()) { Toast.makeText(this, "لا يوجد ملف صوتي محفوظ بعد", Toast.LENGTH_SHORT).show(); return }
+        val file = findLastOutput()
+        if (file == null) {
+            Toast.makeText(this, "لا يوجد ملف صوتي محفوظ بعد", Toast.LENGTH_SHORT).show()
+            return
+        }
         try {
             player?.release()
             player = MediaPlayer().apply { setDataSource(file.absolutePath); prepare(); start() }
             lastOutput = file
-        } catch (e: Exception) { Toast.makeText(this, "تعذر تشغيل الصوت: ${e.message}", Toast.LENGTH_LONG).show() }
+        } catch (e: Exception) {
+            Toast.makeText(this, "تعذر تشغيل الصوت: \${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun saveLastOutput() {
+        val file = findLastOutput()
+        if (file == null) {
+            Toast.makeText(this, "لا يوجد ملف صوتي للحفظ", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "audio/wav"
+            putExtra(Intent.EXTRA_TITLE, file.name)
+        }
+        @Suppress("DEPRECATION")
+        startActivityForResult(intent, 42)
+    }
+
+    private fun shareLastOutput() {
+        val file = findLastOutput()
+        if (file == null) {
+            Toast.makeText(this, "لا يوجد ملف صوتي للمشاركة", Toast.LENGTH_SHORT).show()
+            return
+        }
+        try {
+            val directory = File(cacheDir, "shared_audio")
+            if (!directory.exists() && !directory.mkdirs()) error("تعذر تجهيز ملف المشاركة")
+            val sharedFile = File(directory, file.name)
+            file.copyTo(sharedFile, overwrite = true)
+            val uri = Uri.Builder()
+                .scheme("content")
+                .authority("$packageName.audio")
+                .appendPath(sharedFile.name)
+                .build()
+            val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                type = "audio/wav"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                clipData = android.content.ClipData.newUri(contentResolver, file.name, uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            startActivity(Intent.createChooser(sendIntent, "مشاركة الملف الصوتي"))
+        } catch (e: Exception) {
+            Toast.makeText(this, "تعذرت مشاركة الصوت: \${e.message}", Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun readWav(input: InputStream): Triple<FloatArray, Int, Int> {
@@ -316,3 +409,43 @@ class MainActivity : Activity() {
         super.onDestroy()
     }
 }
+
+/**
+ * Read-only content provider used to share generated WAV files without exposing
+ * the application's private files directory.
+ */
+class TalkerAudioProvider : ContentProvider() {
+    override fun onCreate(): Boolean = true
+
+    override fun getType(uri: Uri): String = "audio/wav"
+
+    override fun query(
+        uri: Uri,
+        projection: Array<out String>?,
+        selection: String?,
+        selectionArgs: Array<out String>?,
+        sortOrder: String?
+    ): Cursor? = null
+
+    override fun insert(uri: Uri, values: ContentValues?): Uri? = null
+    override fun delete(uri: Uri, selection: String?, selectionArgs: Array<out String>?): Int = 0
+    override fun update(
+        uri: Uri,
+        values: ContentValues?,
+        selection: String?,
+        selectionArgs: Array<out String>?
+    ): Int = 0
+
+    override fun openFile(uri: Uri, mode: String): ParcelFileDescriptor {
+        if (mode != "r") throw FileNotFoundException("Read-only audio provider")
+        val appContext = context ?: throw FileNotFoundException("Application context unavailable")
+        val directory = File(appContext.cacheDir, "shared_audio").canonicalFile
+        val name = uri.lastPathSegment ?: throw FileNotFoundException("Missing audio filename")
+        val target = File(directory, name).canonicalFile
+        if (target.parentFile != directory || !target.isFile) {
+            throw FileNotFoundException("Audio file not found")
+        }
+        return ParcelFileDescriptor.open(target, ParcelFileDescriptor.MODE_READ_ONLY)
+    }
+}
+
