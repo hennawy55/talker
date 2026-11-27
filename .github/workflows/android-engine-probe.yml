@@ -58,3 +58,13 @@ jobs:
         run: |
           find build/audio-android -type f -name 'libaudiocpp.so' -print -exec file {} \;
           test -n "$(find build/audio-android -type f -name 'libaudiocpp.so' -print -quit)"
+
+      - name: Upload ARM64 inference library
+        uses: actions/upload-artifact@v4
+        with:
+          name: talker-audio-engine-arm64
+          path: |
+            build/audio-android/**/libaudiocpp.so
+            third_party/audio.cpp/include/audiocpp.h
+          if-no-files-found: error
+          retention-days: 14
