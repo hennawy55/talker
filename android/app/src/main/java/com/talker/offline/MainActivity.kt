@@ -1,19 +1,27 @@
 package com.talker.offline
 
+import android.Manifest
 import android.app.Activity
 import android.content.ContentProvider
 import android.content.ContentValues
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.database.Cursor
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.media.AudioFormat
+import android.media.AudioRecord
 import android.media.MediaPlayer
+import android.media.MediaRecorder
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.ParcelFileDescriptor
 import android.view.Gravity
 import android.view.View
+import android.view.WindowInsets
+import android.view.WindowManager
 import android.widget.*
 import java.io.*
 import java.net.HttpURLConnection
@@ -29,6 +37,10 @@ class MainActivity : Activity() {
         private const val SAVE_OUTPUT = 42
         private const val SAVE_MODEL = 43
         private const val IMPORT_MODEL = 44
+        private const val REQUEST_RECORD_AUDIO = 45
+        private const val REQUEST_POST_NOTIFICATIONS = 46
+        private const val RECORD_SECONDS = 15
+        private const val RECORD_SAMPLE_RATE = 16000
     }
 
     private external fun nativeLoad(modelPath: String): String?
@@ -95,6 +107,8 @@ class MainActivity : Activity() {
     private lateinit var voiceList:LinearLayout
     private lateinit var customTranscriptInput:EditText
     private lateinit var customVoiceStatus:TextView
+    private lateinit var recordCustomButton:Button
+    private lateinit var recordStatusText:TextView
 
     private var modelLoading = false
     private var modelDownloading = false
@@ -112,20 +126,36 @@ class MainActivity : Activity() {
     private var customVoiceChannels = 0
     private var voiceFilter = "all"
     private var voiceLibraryInstalling = false
+    private var recordingReference = false
+    @Volatile private var foregroundTaskRunning = false
+    @Volatile private var appIsInBackground = false
+    private val preferences by lazy { getSharedPreferences("talker_settings", MODE_PRIVATE) }
 
     override fun onCreate(savedInstanceState:Bundle?) {
         super.onCreate(savedInstanceState)
+        window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
         window.statusBarColor = bg
         window.navigationBarColor = bg
+        if (Build.VERSION.SDK_INT >= 29) {
+            window.isStatusBarContrastEnforced = false
+            window.isNavigationBarContrastEnforced = false
+        }
+        window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
         buildShell()
+        requestNotificationPermission()
         refreshModelStatus()
         refreshVoiceLibraryStatus()
         installBundledVoiceLibrary()
+        restoreSavedPreferences()
         if (isValidModel(modelFile(),true)) loadEngine()
     }
 
     private fun buildShell() {
-        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(bg) }
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(bg)
+            clipToPadding = false
+        }
         val top = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(20),dp(12),dp(20),dp(8))
@@ -202,7 +232,21 @@ class MainActivity : Activity() {
             addView(nav,LinearLayout.LayoutParams(-1,-2))
         }
         root.addView(navWrap)
+        if (Build.VERSION.SDK_INT >= 30) {
+            window.setDecorFitsSystemWindows(false)
+            root.setOnApplyWindowInsetsListener { view, insets ->
+                val topInset = insets.getInsets(
+                    WindowInsets.Type.statusBars() or WindowInsets.Type.displayCutout()
+                ).top
+                val bottomInset = insets.getInsets(WindowInsets.Type.navigationBars()).bottom
+                view.setPadding(0, topInset, 0, bottomInset)
+                insets
+            }
+        } else {
+            root.fitsSystemWindows = true
+        }
         setContentView(root)
+        root.requestApplyInsets()
         showPage(0)
     }
 
@@ -351,12 +395,17 @@ class MainActivity : Activity() {
         val custom = card()
         custom.addView(label("استنساخ صوت من تسجيلك",17,white,true))
         custom.addView(label("اختر ملف WAV واضحًا من 5 إلى 10 ثوانٍ، ثم اكتب النص المنطوق فيه كما هو.",12,muted,false,7))
+        recordCustomButton = primaryButton("تسجيل صوت مباشر — 15 ثانية")
+        recordCustomButton.setOnClickListener { requestReferenceRecording() }
+        custom.addView(recordCustomButton,fullWidth().apply { topMargin = dp(10) })
+        recordStatusText = label("سجّل صوتك مباشرة لمدة 15 ثانية أو اختر ملف WAV",12,muted,false,7)
+        custom.addView(recordStatusText)
         val pick = secondaryButton("اختيار تسجيل WAV من الهاتف")
         pick.setOnClickListener { openCustomVoicePicker() }
-        custom.addView(pick,fullWidth().apply { topMargin = dp(10) })
+        custom.addView(pick,fullWidth().apply { topMargin = dp(8) })
         customVoiceStatus = label("لم يتم اختيار تسجيل خاص",12,muted,false,7)
         custom.addView(customVoiceStatus)
-        customTranscriptInput = editField("النص المطابق للتسجيل المرجعي",3)
+        customTranscriptInput = editField("اكتب النص المنطوق في التسجيل كما قيل",3)
         custom.addView(customTranscriptInput,fullWidth().apply { topMargin = dp(8) })
         val useCustom = primaryButton("استخدام الصوت المستنسخ")
         useCustom.setOnClickListener { selectCustomVoice() }
@@ -433,11 +482,13 @@ class MainActivity : Activity() {
     private fun downloadModelToExternal(uri:Uri) {
         if (modelDownloading) return
         modelDownloading = true
+        beginLongTask("تنزيل نموذج الصوت", "data")
         modelProgress.progress = 0
         modelStatus.text = "جارٍ تنزيل الملف وحفظ نسخة خارج التطبيق..."
         modelDownloadButton.isEnabled = false
         modelImportButton.isEnabled = false
         executor.execute {
+            var succeeded = false
             var connection:HttpURLConnection? = null
             var external:OutputStream? = null
             val temp = File(cacheDir,modelName + ".part")
@@ -478,11 +529,11 @@ class MainActivity : Activity() {
                 external = null
                 validateModelFile(temp)
                 promoteModelFile(temp)
+                succeeded = true
                 runOnUiThread {
                     modelDownloading = false
                     modelStatus.text = "اكتمل التنزيل — النسخة الخارجية محفوظة أيضًا"
                     refreshModelStatus()
-                    loadEngine()
                 }
             } catch (e:Exception) {
                 try { external?.close() } catch (_:Exception) {}
@@ -493,18 +544,28 @@ class MainActivity : Activity() {
                     refreshModelStatus()
                     toast("تعذر تنزيل النموذج أو حفظه")
                 }
-            } finally { connection?.disconnect() }
+            } finally {
+                connection?.disconnect()
+                finishLongTask(
+                    if (succeeded) "اكتمل تنزيل النموذج" else "تعذر تنزيل النموذج",
+                    if (succeeded) "تم حفظ النموذج داخل التطبيق والنسخة الخارجية." else "لم يكتمل تنزيل النموذج.",
+                    succeeded
+                )
+                if (succeeded) runOnUiThread { loadEngine() }
+            }
         }
     }
 
     private fun importModel(uri:Uri) {
         if (modelDownloading) return
         modelDownloading = true
+        beginLongTask("استيراد نموذج الصوت", "data")
         modelStatus.text = "جارٍ استيراد ملف النموذج..."
         modelProgress.progress = 0
         modelDownloadButton.isEnabled = false
         modelImportButton.isEnabled = false
         executor.execute {
+            var succeeded = false
             val temp = File(cacheDir,modelName + ".importing")
             try {
                 val total = try { contentResolver.openAssetFileDescriptor(uri,"r")?.length ?: -1L }
@@ -529,11 +590,11 @@ class MainActivity : Activity() {
                 } ?: error("تعذر قراءة الملف المختار")
                 validateModelFile(temp)
                 promoteModelFile(temp)
+                succeeded = true
                 runOnUiThread {
                     modelDownloading = false
                     refreshModelStatus()
                     modelStatus.text = "تم استيراد النموذج بنجاح"
-                    loadEngine()
                 }
             } catch (e:Exception) {
                 temp.delete()
@@ -543,6 +604,13 @@ class MainActivity : Activity() {
                     refreshModelStatus()
                     toast("تأكد أن الملف هو VoiceTut Q8_0 GGUF كامل")
                 }
+            } finally {
+                finishLongTask(
+                    if (succeeded) "اكتمل استيراد النموذج" else "تعذر استيراد النموذج",
+                    if (succeeded) "تم استيراد ملف النموذج والتحقق منه." else "فشل استيراد ملف GGUF.",
+                    succeeded
+                )
+                if (succeeded) runOnUiThread { loadEngine() }
             }
         }
     }
@@ -580,22 +648,35 @@ class MainActivity : Activity() {
         }
         modelLoading = true
         engineReady = false
+        beginLongTask("تحميل محرك الصوت", "media")
         modelStatus.text = "النموذج محفوظ — جارٍ تجهيز المحرك"
         engineStatus.text = "جارٍ تحميل النموذج في الذاكرة..."
         generateButton.isEnabled = false
         modelDownloadButton.isEnabled = false
         modelImportButton.isEnabled = false
         executor.execute {
-            val error = try { nativeClose(); nativeLoad(modelFile().absolutePath) }
-                catch (e:Exception) { e.message ?: "تعذر تشغيل مكتبة المحرك" }
-            runOnUiThread {
-                modelLoading = false
-                engineReady = error == null
-                engineStatus.text = if (engineReady) "المحرك جاهز — التوليد يعمل محليًا" else "تعذر تحميل المحرك: " + error
-                generateButton.isEnabled = engineReady
-                modelDownloadButton.isEnabled = true
-                modelImportButton.isEnabled = true
-                refreshModelStatus()
+            var loadError: String? = null
+            try {
+                nativeClose()
+                loadError = nativeLoad(modelFile().absolutePath)
+            } catch (e:Exception) {
+                loadError = e.message ?: "تعذر تشغيل مكتبة المحرك"
+            } finally {
+                val succeeded = loadError == null
+                runOnUiThread {
+                    modelLoading = false
+                    engineReady = succeeded
+                    engineStatus.text = if (engineReady) "المحرك جاهز — التوليد يعمل محليًا" else "تعذر تحميل المحرك: " + loadError
+                    generateButton.isEnabled = engineReady
+                    modelDownloadButton.isEnabled = true
+                    modelImportButton.isEnabled = true
+                    refreshModelStatus()
+                }
+                finishLongTask(
+                    if (succeeded) "المحرك جاهز" else "فشل تحميل المحرك",
+                    if (succeeded) "تم تجهيز نموذج الصوت في الذاكرة." else "تعذر تجهيز نموذج الصوت.",
+                    succeeded
+                )
             }
         }
     }
@@ -736,6 +817,7 @@ class MainActivity : Activity() {
                     activeVoiceRate = parsed.second
                     activeVoiceChannels = parsed.third
                     activeReferenceText = voice.text
+                    persistVoiceSelection()
                     updateSelectedVoiceUi()
                     refreshPresetCards()
                     toast("تم اختيار صوت " + voice.ar)
@@ -764,10 +846,205 @@ class MainActivity : Activity() {
         activeVoiceChannels = 0
         activeReferenceText = null
         customVoiceSamples = null
+        persistVoiceSelection()
         updateSelectedVoiceUi()
         refreshPresetCards()
         toast("تم اختيار الصوت التلقائي")
     }
+    private fun requestReferenceRecording() {
+        if (recordingReference) return
+        if (Build.VERSION.SDK_INT >= 23 &&
+            checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), REQUEST_RECORD_AUDIO)
+            return
+        }
+        startReferenceRecording()
+    }
+
+    private fun startReferenceRecording() {
+        if (recordingReference) return
+        recordingReference = true
+        recordCustomButton.isEnabled = false
+        recordCustomButton.text = "جارٍ التسجيل..."
+        recordStatusText.text = "تحدث الآن — التسجيل لمدة 15 ثانية"
+        executor.execute {
+            var recorder: AudioRecord? = null
+            var saved = false
+            try {
+                val channelConfig = AudioFormat.CHANNEL_IN_MONO
+                val encoding = AudioFormat.ENCODING_PCM_16BIT
+                val minimum = AudioRecord.getMinBufferSize(RECORD_SAMPLE_RATE, channelConfig, encoding)
+                if (minimum <= 0) error("تعذر تهيئة الميكروفون على هذا الجهاز")
+                recorder = AudioRecord(
+                    MediaRecorder.AudioSource.MIC,
+                    RECORD_SAMPLE_RATE,
+                    channelConfig,
+                    encoding,
+                    maxOf(minimum * 2, 8192)
+                )
+                if (recorder.state != AudioRecord.STATE_INITIALIZED) error("تعذر تهيئة الميكروفون")
+                val totalSamples = RECORD_SAMPLE_RATE * RECORD_SECONDS
+                val pcm = ShortArray(totalSamples)
+                recorder.startRecording()
+                var offset = 0
+                while (offset < totalSamples) {
+                    val read = recorder.read(
+                        pcm,
+                        offset,
+                        minOf(totalSamples - offset, maxOf(1024, minimum / 2)),
+                        AudioRecord.READ_BLOCKING
+                    )
+                    if (read < 0) error("توقف تسجيل الميكروفون: " + read)
+                    if (read == 0) continue
+                    offset += read
+                    val elapsed = minOf(RECORD_SECONDS, offset / RECORD_SAMPLE_RATE)
+                    runOnUiThread {
+                        recordStatusText.text = "جارٍ التسجيل — " + elapsed + " / " + RECORD_SECONDS + " ثانية"
+                    }
+                }
+                recorder.stop()
+                val samples = FloatArray(totalSamples) { pcm[it] / 32768f }
+                val directory = File(filesDir, "my_voices")
+                if (!directory.exists() && !directory.mkdirs()) error("تعذر إنشاء مجلد التسجيل")
+                val file = File(directory, "custom-reference.wav")
+                writeWav(file, samples, RECORD_SAMPLE_RATE, 1)
+                val parsed = FileInputStream(file).use { readWav(it) }
+                customVoiceSamples = parsed.first
+                customVoiceRate = parsed.second
+                customVoiceChannels = parsed.third
+                customVoiceStatus.text = "تم تسجيل صوتك — 15 ثانية (" + file.length() / 1024 + " KB)"
+                saved = true
+                runOnUiThread {
+                    recordStatusText.text = "اكتمل التسجيل. اكتب النص المطابق ثم اضغط استخدام الصوت المستنسخ."
+                }
+            } catch (e: Exception) {
+                runOnUiThread {
+                    recordStatusText.text = "فشل التسجيل: " + (e.message ?: "خطأ غير معروف")
+                }
+            } finally {
+                try { if (recorder?.recordingState == AudioRecord.RECORDSTATE_RECORDING) recorder.stop() } catch (_: Exception) {}
+                try { recorder?.release() } catch (_: Exception) {}
+                recordingReference = false
+                runOnUiThread {
+                    recordCustomButton.isEnabled = true
+                    recordCustomButton.text = "تسجيل صوت مباشر — 15 ثانية"
+                    if (!saved) customVoiceStatus.text = "لم يتم حفظ تسجيل جديد"
+                }
+            }
+        }
+    }
+
+    override fun onRequestPermissionsResult(requestCode:Int, permissions:Array<out String>, grantResults:IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_RECORD_AUDIO) {
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                startReferenceRecording()
+            } else {
+                recordStatusText.text = "يلزم السماح باستخدام الميكروفون لتسجيل الصوت"
+            }
+        }
+    }
+
+    private fun requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQUEST_POST_NOTIFICATIONS)
+        }
+    }
+
+    private fun persistVoiceSelection() {
+        preferences.edit()
+            .putString("selected_voice_key", activeVoiceKey ?: "auto")
+            .putString("selected_voice_title", activeVoiceTitle)
+            .putString("custom_reference_text", customTranscriptInput.text.toString())
+            .apply()
+    }
+
+    private fun persistUiPreferences() {
+        if (::generationLanguage.isInitialized) {
+            preferences.edit()
+                .putInt("generation_language", generationLanguage.selectedItemPosition)
+                .putString("last_text", if (::textInput.isInitialized) textInput.text.toString() else "")
+                .putString("custom_reference_text", if (::customTranscriptInput.isInitialized) customTranscriptInput.text.toString() else "")
+                .apply()
+        }
+    }
+
+    private fun restoreSavedPreferences() {
+        val language = preferences.getInt("generation_language", 0).coerceIn(0, 1)
+        generationLanguage.setSelection(language)
+        textInput.setText(preferences.getString("last_text", "") ?: "")
+        customTranscriptInput.setText(preferences.getString("custom_reference_text", "") ?: "")
+        val savedKey = preferences.getString("selected_voice_key", "auto") ?: "auto"
+        executor.execute {
+            try {
+                val parsed: Triple<FloatArray, Int, Int>?
+                val selected = voices.firstOrNull { it.key == savedKey }
+                if (savedKey == "custom") {
+                    val file = File(filesDir, "my_voices/custom-reference.wav")
+                    parsed = if (file.isFile) FileInputStream(file).use { readWav(it) } else null
+                } else if (selected != null) {
+                    val file = voiceFile(selected)
+                    parsed = if (file.isFile) FileInputStream(file).use { readWav(it) } else null
+                } else {
+                    parsed = null
+                }
+                runOnUiThread {
+                    if (parsed != null && savedKey == "custom") {
+                        activeVoiceKey = "custom"
+                        activeVoiceTitle = "صوت مستنسخ من تسجيلك"
+                        activeVoiceSamples = parsed.first
+                        activeVoiceRate = parsed.second
+                        activeVoiceChannels = parsed.third
+                        activeReferenceText = customTranscriptInput.text.toString()
+                        customVoiceSamples = parsed.first
+                        customVoiceRate = parsed.second
+                        customVoiceChannels = parsed.third
+                        customVoiceStatus.text = "تم استعادة التسجيل المحفوظ — 15 ثانية تقريبًا"
+                    } else if (parsed != null && selected != null) {
+                        activeVoiceKey = selected.key
+                        activeVoiceTitle = selected.ar + " (" + selected.en + ")"
+                        activeVoiceSamples = parsed.first
+                        activeVoiceRate = parsed.second
+                        activeVoiceChannels = parsed.third
+                        activeReferenceText = selected.text
+                    } else {
+                        activeVoiceKey = null
+                        activeVoiceTitle = "الصوت التلقائي"
+                        activeVoiceSamples = null
+                        activeVoiceRate = 0
+                        activeVoiceChannels = 0
+                        activeReferenceText = null
+                    }
+                    updateSelectedVoiceUi()
+                    refreshPresetCards()
+                }
+            } catch (e: Exception) {
+                runOnUiThread { toast("تعذر استعادة اختيار الصوت السابق: " + e.message) }
+            }
+        }
+    }
+
+    private fun beginLongTask(title:String, kind:String) {
+        foregroundTaskRunning = true
+        try {
+            TalkerTaskService.start(applicationContext, title, kind)
+        } catch (e: Exception) {
+            foregroundTaskRunning = false
+            toast("تعذر تشغيل الخدمة الأمامية: " + (e.message ?: "خطأ غير معروف"))
+        }
+    }
+
+    private fun finishLongTask(title:String, message:String, succeeded:Boolean) {
+        foregroundTaskRunning = false
+        try {
+            TalkerTaskService.complete(applicationContext, title, message, succeeded, appIsInBackground)
+        } catch (_: Exception) {}
+        if (isDestroyed) {
+            try { nativeClose() } catch (_: Exception) {}
+        }
+    }
+
     private fun openCustomVoicePicker() {
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
@@ -776,6 +1053,7 @@ class MainActivity : Activity() {
         @Suppress("DEPRECATION")
         startActivityForResult(intent,PICK_CUSTOM)
     }
+
     private fun selectCustomVoice() {
         val samples = customVoiceSamples
         val transcript = customTranscriptInput.text.toString().trim()
@@ -787,6 +1065,7 @@ class MainActivity : Activity() {
         activeVoiceRate = customVoiceRate
         activeVoiceChannels = customVoiceChannels
         activeReferenceText = transcript
+        persistVoiceSelection()
         updateSelectedVoiceUi()
         refreshPresetCards()
         toast("تم اختيار صوتك المستنسخ")
@@ -805,12 +1084,15 @@ class MainActivity : Activity() {
         val transcript = activeReferenceText
         if (ref != null && transcript.isNullOrBlank()) { toast("النص المرجعي للصوت غير متوفر"); showPage(2); return }
         generateButton.isEnabled = false
+        persistUiPreferences()
+        beginLongTask("توليد ملف صوتي", "media")
         generateButton.text = "جارٍ إنشاء الصوت..."
         outputStatus.text = "جارٍ توليد الصوت محليًا..."
         val languageCode = if (generationLanguage.selectedItemPosition == 0) "arz" else "en"
         val refRate = activeVoiceRate
         val refChannels = activeVoiceChannels
         executor.execute {
+            var succeeded = false
             try {
                 val audio = nativeGenerate(text,languageCode,ref,refRate,refChannels,if (ref != null) transcript else null)
                     ?: error(nativeLastError())
@@ -818,6 +1100,7 @@ class MainActivity : Activity() {
                 val out = File(filesDir, "audio-" + System.currentTimeMillis() + ".wav")
                 writeWav(out,audio,rate,1)
                 lastOutput = out
+                succeeded = true
                 runOnUiThread {
                     generateButton.text = "إنشاء الصوت مرة أخرى"
                     outputStatus.text = "اكتمل إنشاء الملف — " + out.name + " (" + out.length()/1024 + " KB)"
@@ -830,7 +1113,14 @@ class MainActivity : Activity() {
                     outputStatus.text = "فشل إنشاء الصوت: " + e.message
                     toast("فشل التوليد: " + e.message)
                 }
-            } finally { runOnUiThread { generateButton.isEnabled = engineReady } }
+            } finally {
+                runOnUiThread { generateButton.isEnabled = engineReady }
+                finishLongTask(
+                    if (succeeded) "اكتمل توليد الصوت" else "فشل توليد الصوت",
+                    if (succeeded) "تم إنشاء ملف WAV وحفظه داخل Talker." else "حدث خطأ أثناء توليد الصوت.",
+                    succeeded
+                )
+            }
         }
     }
 
@@ -896,6 +1186,21 @@ class MainActivity : Activity() {
     }
 
     @Deprecated("Legacy activity result for broad Android compatibility")
+    override fun onStart() {
+        super.onStart()
+        appIsInBackground = false
+    }
+
+    override fun onPause() {
+        persistUiPreferences()
+        super.onPause()
+    }
+
+    override fun onStop() {
+        appIsInBackground = true
+        super.onStop()
+    }
+
     override fun onActivityResult(requestCode:Int,resultCode:Int,data:Intent?) {
         super.onActivityResult(requestCode,resultCode,data)
         if (resultCode != RESULT_OK) return
@@ -1084,8 +1389,10 @@ class MainActivity : Activity() {
     private fun toast(message:String) { Toast.makeText(this,message,Toast.LENGTH_LONG).show() }
 
     override fun onDestroy() {
-        try { player?.release(); nativeClose() } catch (_:Exception) {}
-        executor.shutdownNow()
+        try { player?.release() } catch (_: Exception) {}
+        if (!foregroundTaskRunning) {
+            try { nativeClose() } catch (_: Exception) {}
+        }
         super.onDestroy()
     }
 }
