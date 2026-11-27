@@ -94,9 +94,12 @@ jobs:
           APK=android/app/build/outputs/apk/debug/app-debug.apk
           test -s "$APK"
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | head -n 1
-          unzip -l "$APK" | grep -E 'lib/arm64-v8a/lib(audiocpp|talker_jni)\.so'
+          unzip -l "$APK" | grep -E 'lib/arm64-v8a/lib(audiocpp|talker_jni)\\.so'
           unzip -p "$APK" lib/arm64-v8a/libtalker_jni.so >/dev/null
-          VOICE_COUNT=$(unzip -l "$APK" | grep -cE 'assets/reference_speakers/[^/]+\.wav          unzip -p "$APK" lib/arm64-v8a/libaudiocpp.so > /tmp/libaudiocpp.so
+          unzip -p "$APK" lib/arm64-v8a/libaudiocpp.so > /tmp/libaudiocpp.so
+          VOICE_COUNT=$(unzip -Z1 "$APK" | while IFS= read -r entry; do case "$entry" in assets/reference_speakers/*.wav) echo x;; esac; done | wc -l)
+          test "$VOICE_COUNT" -eq 19
+          unzip -l "$APK" | grep 'assets/licenses/THIRD_PARTY_NOTICES.txt'
           readelf -d /tmp/libaudiocpp.so | tee /tmp/libaudiocpp-needed.txt
           if readelf -d /tmp/libaudiocpp.so | grep -q 'libomp.so'; then
             echo "APK contains libaudiocpp.so with missing libomp.so dependency"
