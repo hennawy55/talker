@@ -11,21 +11,21 @@ import android.widget.ScrollView
 import android.widget.TextView
 
 class MainActivity : Activity() {
-    private val background = Color.rgb(12, 16, 24)
+    private val bgColor = Color.rgb(12, 16, 24)
     private val surface = Color.rgb(24, 31, 43)
     private val primary = Color.rgb(117, 151, 255)
     private val muted = Color.rgb(164, 176, 196)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.statusBarColor = background
-        window.navigationBarColor = background
+        window.statusBarColor = bgColor
+        window.navigationBarColor = bgColor
         window.decorView.systemUiVisibility = 0
 
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(20), dp(24), dp(20), dp(24))
-            setBackgroundColor(background)
+            setBackgroundColor(bgColor)
         }
 
         val scroll = ScrollView(this).apply {
