@@ -1,0 +1,80 @@
+name: Deploy web app to Hugging Face Space
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: talker-huggingface-deploy
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out selected branch
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Build React web interface
+        working-directory: web
+        run: |
+          npm ci
+          npm run build
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Validate Python source
+        run: python -m compileall -q app.py voicetut_tts
+
+      - name: Upload application to Hugging Face Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_SPACE_ID: ${{ secrets.HF_SPACE_ID }}
+        run: |
+          python -m pip install --upgrade huggingface_hub
+          python - <<'PY'
+          import os
+          from huggingface_hub import HfApi
+
+          token = os.environ.get("HF_TOKEN")
+          repo_id = os.environ.get("HF_SPACE_ID")
+          if not token:
+              raise SystemExit("Missing repository secret: HF_TOKEN")
+          if not repo_id or "/" not in repo_id:
+              raise SystemExit("Missing or invalid repository secret: HF_SPACE_ID (expected account/space-name)")
+
+          api = HfApi(token=token)
+          api.upload_folder(
+              repo_id=repo_id,
+              repo_type="space",
+              folder_path=".",
+              commit_message="Deploy Talker web app from GitHub",
+              ignore_patterns=[
+                  ".git/**",
+                  ".github/**",
+                  "web/node_modules/**",
+                  "web/dist/**",
+                  "docs/audio/**",
+                  "examples/**",
+                  "tests/**",
+                  "hf_space/**",
+                  "hf_model_card/**",
+                  "*.ipynb",
+                  ".venv/**",
+                  "__pycache__/**",
+              ],
+          )
+          print(f"Uploaded application to https://huggingface.co/spaces/{repo_id}")
+          PY
