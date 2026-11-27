@@ -29,27 +29,24 @@ Java_com_talker_offline_MainActivity_nativeLoad(JNIEnv* env, jobject, jstring mo
     release_engine();
     const char* path = env->GetStringUTFChars(modelPath, nullptr);
     audiocpp_status st = audiocpp_registry_create(nullptr, &g_registry);
-    if (st != AUDIOCPP_OK) { env->ReleaseStringUTFChars(modelPath, path); set_error("Registry init failed"); return env->NewStringUTF(g_error.c_str()); }
-    audiocpp_model_config config = {"omnivoice", nullptr, nullptr, nullptr};
-    st = audiocpp_model_load(g_registry, path, &config, nullptr, &g_model);
+    if (st == AUDIOCPP_OK) {
+        audiocpp_model_config config = {"omnivoice", nullptr, nullptr, nullptr};
+        st = audiocpp_model_load(g_registry, path, &config, nullptr, &g_model);
+    }
     env->ReleaseStringUTFChars(modelPath, path);
     if (st != AUDIOCPP_OK) { set_error("Model load failed"); release_engine(); return env->NewStringUTF(g_error.c_str()); }
     audiocpp_backend_config backend = {"cpu", 0, 4};
     st = audiocpp_session_create(g_model, "tts", "offline", &backend, nullptr, &g_session);
     if (st != AUDIOCPP_OK) { set_error("Session create failed"); release_engine(); return env->NewStringUTF(g_error.c_str()); }
-    if (!audiocpp_model_supports_speaker_reference(g_model)) {
-        g_error = "The loaded model does not support speaker reference audio";
-        release_engine(); return env->NewStringUTF(g_error.c_str());
-    }
     g_error.clear();
     return nullptr;
 }
 
-extern "C" JNIEXPORT jstring JNICALL
+extern "C" JNIEXPORT jfloatArray JNICALL
 Java_com_talker_offline_MainActivity_nativeGenerate(JNIEnv* env, jobject, jstring text,
         jstring language, jfloatArray voice, jint voiceRate, jint voiceChannels, jstring referenceText) {
     std::lock_guard<std::mutex> lock(g_mutex);
-    if (!g_session) { g_error = "Engine is not loaded"; return env->NewStringUTF(g_error.c_str()); }
+    if (!g_session) { g_error = "Engine is not loaded"; return nullptr; }
     const char* textChars = env->GetStringUTFChars(text, nullptr);
     const char* langChars = env->GetStringUTFChars(language, nullptr);
     const char* refChars = referenceText ? env->GetStringUTFChars(referenceText, nullptr) : nullptr;
@@ -73,27 +70,32 @@ Java_com_talker_offline_MainActivity_nativeGenerate(JNIEnv* env, jobject, jstrin
     if (st != AUDIOCPP_OK) {
         set_error("Speech generation failed");
         audiocpp_result_free(result);
-        return env->NewStringUTF(g_error.c_str());
+        return nullptr;
     }
     const float* samples = nullptr; size_t frames = 0; int rate = 0, channels = 0;
     st = audiocpp_result_audio(result, &samples, &frames, &rate, &channels);
-    if (st != AUDIOCPP_OK || !samples || frames == 0) {
-        set_error("No audio returned");
+    if (st != AUDIOCPP_OK || !samples || frames == 0 || frames * static_cast<size_t>(channels) > 100000000) {
+        set_error("No valid audio returned");
         audiocpp_result_free(result);
-        return env->NewStringUTF(g_error.c_str());
+        return nullptr;
     }
     const size_t count = frames * static_cast<size_t>(channels);
     jfloatArray out = env->NewFloatArray(static_cast<jsize>(count));
     if (out) env->SetFloatArrayRegion(out, 0, static_cast<jsize>(count), samples);
     g_sample_rate = rate;
     audiocpp_result_free(result);
-    if (!out) { g_error = "Unable to allocate output audio"; return env->NewStringUTF(g_error.c_str()); }
-    return reinterpret_cast<jstring>(out);
+    if (!out) g_error = "Unable to allocate output audio";
+    else g_error.clear();
+    return out;
 }
 
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_talker_offline_MainActivity_nativeLastError(JNIEnv* env, jobject) {
+    std::lock_guard<std::mutex> lock(g_mutex);
+    return env->NewStringUTF(g_error.c_str());
+}
 extern "C" JNIEXPORT jint JNICALL
 Java_com_talker_offline_MainActivity_nativeSampleRate(JNIEnv*, jobject) { return g_sample_rate; }
-
 extern "C" JNIEXPORT void JNICALL
 Java_com_talker_offline_MainActivity_nativeClose(JNIEnv*, jobject) {
     std::lock_guard<std::mutex> lock(g_mutex); release_engine();
