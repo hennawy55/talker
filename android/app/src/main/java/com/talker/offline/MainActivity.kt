@@ -63,7 +63,6 @@ class MainActivity : Activity() {
     private val executor = Executors.newSingleThreadExecutor()
     private val modelUrl = "https://huggingface.co/mohammedaly22/VoiceTut-TTS-GGUF/resolve/main/voicetut-tts-q8_0.gguf"
     private val modelName = "voicetut-tts-q8_0.gguf"
-    private val voiceBaseUrl = "https://raw.githubusercontent.com/MohammedAly22/VoiceTuT-TTS/44cba00cd3ddb04b5213353e19e960045e332da7/reference_speakers/"
     private val bg = Color.rgb(10,14,23)
     private val surface = Color.rgb(22,29,43)
     private val surface2 = Color.rgb(30,39,57)
@@ -112,6 +111,7 @@ class MainActivity : Activity() {
     private var customVoiceRate = 0
     private var customVoiceChannels = 0
     private var voiceFilter = "all"
+    private var voiceLibraryInstalling = false
 
     override fun onCreate(savedInstanceState:Bundle?) {
         super.onCreate(savedInstanceState)
@@ -120,6 +120,7 @@ class MainActivity : Activity() {
         buildShell()
         refreshModelStatus()
         refreshVoiceLibraryStatus()
+        installBundledVoiceLibrary()
         if (isValidModel(modelFile(),true)) loadEngine()
     }
 
@@ -314,7 +315,7 @@ class MainActivity : Activity() {
 
         val library = card()
         library.addView(label("مكتبة VoiceTut الجاهزة",17,white,true))
-        library.addView(label("عينات WAV أصلية من مستودع VoiceTut. تُنزّل مرة واحدة داخل التطبيق لتعمل دون إنترنت بعد ذلك.",12,muted,false,7))
+        library.addView(label("عينات WAV أصلية مضمّنة داخل التطبيق — جاهزة للاستخدام دون تنزيل منفصل أو اتصال بالإنترنت.",12,muted,false,7))
         voiceLibraryStatus = label("مكتبة الأصوات غير منزّلة",13,accent,true,12)
         library.addView(voiceLibraryStatus)
         voiceLibraryProgress = ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal).apply {
@@ -323,7 +324,7 @@ class MainActivity : Activity() {
         }
         library.addView(voiceLibraryProgress,fullWidth().apply { topMargin = dp(8) })
         voiceLibraryButton = primaryButton("تنزيل مكتبة الأصوات الـ19")
-        voiceLibraryButton.setOnClickListener { downloadVoiceLibrary() }
+        voiceLibraryButton.setOnClickListener { installBundledVoiceLibrary() }
         library.addView(voiceLibraryButton,fullWidth().apply { topMargin = dp(10) })
         content.addView(library,fullWidth().apply { topMargin = dp(12) })
 
@@ -601,55 +602,70 @@ class MainActivity : Activity() {
 
     private fun refreshVoiceLibraryStatus() {
         val count = voices.count { voiceFile(it).isFile && voiceFile(it).length() > 1000L }
-        voiceLibraryStatus.text = "تم تجهيز " + count + " من " + voices.size + " صوت"
+        voiceLibraryStatus.text = if (count == voices.size) {
+            "الأصوات الجاهزة متاحة دون إنترنت — 19/19"
+        } else if (voiceLibraryInstalling) {
+            "جارٍ تجهيز الأصوات المضمّنة: " + count + " من " + voices.size
+        } else {
+            "جارٍ تجهيز مكتبة الأصوات عند تشغيل التطبيق"
+        }
         voiceLibraryProgress.progress = count
-        voiceLibraryButton.text = if (count == voices.size) "مكتبة الأصوات جاهزة — 19/19" else "تنزيل مكتبة الأصوات الـ19"
+        voiceLibraryButton.text = when {
+            count == voices.size -> "مكتبة الأصوات جاهزة — 19/19"
+            voiceLibraryInstalling -> "جارٍ تجهيز الأصوات..."
+            else -> "إعادة تجهيز الأصوات الجاهزة"
+        }
+        voiceLibraryButton.isEnabled = !voiceLibraryInstalling && count < voices.size
     }
-    private fun downloadVoiceLibrary() {
+
+    private fun installBundledVoiceLibrary() {
+        if (voiceLibraryInstalling) return
         val missing = voices.filter { !voiceFile(it).isFile || voiceFile(it).length() < 1000L }
-        if (missing.isEmpty()) { refreshVoiceLibraryStatus(); toast("مكتبة الأصوات جاهزة بالفعل"); return }
+        if (missing.isEmpty()) {
+            refreshVoiceLibraryStatus()
+            refreshPresetCards()
+            return
+        }
+
+        voiceLibraryInstalling = true
         voiceLibraryButton.isEnabled = false
-        voiceLibraryStatus.text = "جارٍ تنزيل عينات الأصوات..."
+        voiceLibraryStatus.text = "جارٍ نسخ الأصوات الجاهزة إلى مساحة التطبيق..."
         executor.execute {
             try {
                 val directory = voiceDirectory()
                 if (!directory.exists() && !directory.mkdirs()) error("تعذر إنشاء مجلد الأصوات")
-                missing.forEachIndexed { index,voice ->
+                missing.forEachIndexed { index, voice ->
                     val target = voiceFile(voice)
-                    val temp = File(directory,voice.key + ".wav.part")
-                    var connection:HttpURLConnection? = null
-                    try {
-                        connection = (URL(voiceBaseUrl + voice.file).openConnection() as HttpURLConnection).apply {
-                            connectTimeout = 20000
-                            readTimeout = 60000
-                            instanceFollowRedirects = true
-                            setRequestProperty("User-Agent","Talker-Android")
+                    val temp = File(directory, voice.key + ".wav.part")
+                    assets.open("reference_speakers/" + voice.file).use { input ->
+                        FileOutputStream(temp).use { output ->
+                            input.copyTo(output, 64 * 1024)
+                            output.fd.sync()
                         }
-                        if (connection.responseCode !in 200..299) error("تعذر تنزيل " + voice.en)
-                        connection.inputStream.use { input ->
-                            FileOutputStream(temp).use { output -> input.copyTo(output,64*1024); output.fd.sync() }
-                        }
-                        if (temp.length() < 1000L || !isWavFile(temp)) error("عينة " + voice.en + " غير صالحة")
-                        if (target.exists()) target.delete()
-                        if (!temp.renameTo(target)) error("تعذر حفظ " + voice.en)
-                    } finally { connection?.disconnect() }
+                    }
+                    if (temp.length() < 1000L || !isWavFile(temp)) {
+                        error("عينة " + voice.en + " المضمّنة غير صالحة")
+                    }
+                    if (target.exists() && !target.delete()) error("تعذر استبدال عينة " + voice.en)
+                    if (!temp.renameTo(target)) error("تعذر حفظ عينة " + voice.en)
                     val done = index + 1
+                    val installed = voices.size - missing.size + done
                     runOnUiThread {
-                        voiceLibraryProgress.progress = (voices.size-missing.size+done).coerceIn(0,voices.size)
-                        voiceLibraryStatus.text = "تم تنزيل " + (voices.size-missing.size+done) + " من " + voices.size
+                        voiceLibraryProgress.progress = installed
+                        voiceLibraryStatus.text = "تم تجهيز " + installed + " من " + voices.size
                     }
                 }
                 runOnUiThread {
-                    voiceLibraryButton.isEnabled = true
+                    voiceLibraryInstalling = false
                     refreshVoiceLibraryStatus()
                     refreshPresetCards()
-                    toast("تم تجهيز الأصوات المرجعية الـ19")
+                    toast("الأصوات الـ19 جاهزة — يمكن استخدامها دون إنترنت")
                 }
-            } catch (e:Exception) {
+            } catch (e: Exception) {
                 runOnUiThread {
-                    voiceLibraryButton.isEnabled = true
+                    voiceLibraryInstalling = false
                     refreshVoiceLibraryStatus()
-                    voiceLibraryStatus.text = "تعذر إكمال المكتبة: " + e.message
+                    voiceLibraryStatus.text = "تعذر تجهيز مكتبة الأصوات: " + (e.message ?: "خطأ غير معروف")
                     refreshPresetCards()
                 }
             }
