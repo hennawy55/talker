@@ -172,7 +172,7 @@ class MainActivity : Activity() {
     private var denoiseReference = true
     private var preprocessReference = true
     private var postprocessGeneratedAudio = true
-    private var splitIntoSeparateSentences = false
+    private var splitIntoSeparateSentences = true
     private var activeVoiceKey:String? = null
     private var activeVoiceTitle = "الصوت التلقائي"
     private var activeVoiceSamples:FloatArray? = null
@@ -409,13 +409,30 @@ class MainActivity : Activity() {
         }
         stepsSeekBar = stepsControl.first
         stepsValueText = stepsControl.second
-        val guidanceControl = addFlatSlider(tuning,"قوة الالتزام بالنص",0f,5f,0.1f,2f) {
+        val presets = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+        }
+        listOf("سريع" to 16,"متوازن" to 32,"جودة عالية" to 64).forEach { preset ->
+            val button = secondaryButton(preset.first)
+            button.textSize = 11f
+            button.setOnClickListener {
+                stepsSeekBar.progress = preset.second - 8
+            }
+            presets.addView(button,LinearLayout.LayoutParams(0,dp(42),1f).apply {
+                marginEnd = dp(4)
+                marginStart = dp(4)
+            })
+        }
+        tuning.addView(presets,fullWidth().apply { topMargin = dp(2) })
+
+        val guidanceControl = addFlatSlider(tuning,"قوة الالتزام بالنص",1f,4f,0.1f,2f) {
             guidanceScale = it
             persistGenerationSettings()
         }
         guidanceSeekBar = guidanceControl.first
         guidanceValueText = guidanceControl.second
-        val speedControl = addFlatSlider(tuning,"سرعة النطق",0.5f,2.0f,0.05f,1.0f) {
+        val speedControl = addFlatSlider(tuning,"سرعة النطق",0.6f,1.6f,0.05f,1.0f) {
             speakingSpeed = it
             persistGenerationSettings()
         }
@@ -1213,10 +1230,10 @@ class MainActivity : Activity() {
         denoiseReference = preferences.getBoolean("generation_denoise",true)
         preprocessReference = preferences.getBoolean("generation_preprocess",true)
         postprocessGeneratedAudio = preferences.getBoolean("generation_postprocess",true)
-        splitIntoSeparateSentences = preferences.getBoolean("generation_split_sentences",false)
+        splitIntoSeparateSentences = preferences.getBoolean("generation_split_sentences",true)
         stepsSeekBar.progress = generationSteps - 8
-        guidanceSeekBar.progress = (guidanceScale * 10f).toInt().coerceIn(0,50)
-        speedSeekBar.progress = ((speakingSpeed - 0.5f) / 0.05f).toInt().coerceIn(0,30)
+        guidanceSeekBar.progress = ((guidanceScale - 1.0f) * 10f).toInt().coerceIn(0,30)
+        speedSeekBar.progress = ((speakingSpeed - 0.6f) / 0.05f).toInt().coerceIn(0,20)
         denoiseCheckBox.isChecked = denoiseReference
         preprocessCheckBox.isChecked = preprocessReference
         postprocessCheckBox.isChecked = postprocessGeneratedAudio
