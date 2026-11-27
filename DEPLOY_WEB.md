@@ -22,12 +22,14 @@ Python inference backend.
    `mohammedaly22/VoiceTut-TTS` when the app starts. The Space must be allowed
    to access that model if its visibility or access rules change.
 
-The model needs GPU acceleration for practical use. Choose ZeroGPU where it is
-available to your account, or a supported GPU runtime (the README suggests
-T4-small). CPU-only runtime may be extremely slow or fail to load the model
-within the available memory. Hardware selection and any charges are controlled
-in Hugging Face Space Settings; the suggested hardware in the README does not
-automatically assign or pay for a GPU.
+The model needs GPU acceleration for practical use. Choose **ZeroGPU** in the
+Space Settings when it is available to your account; this project already uses
+the `@spaces.GPU` decorator required by ZeroGPU. Eligible free personal
+accounts in good standing can host up to two ZeroGPU Spaces. A dedicated GPU
+runtime is an alternative, but it is billed to the Space owner by the hour.
+CPU-only runtime is not suitable for practical synthesis and may fail to load
+the model within available memory. Hardware selection is controlled in Space
+Settings and is not automatically assigned by this repository.
 
 ## 2. Allow GitHub Actions to deploy
 
@@ -53,6 +55,9 @@ Do not put the token in source files, commits, or workflow YAML.
 The workflow installs the web dependencies, builds the React interface into
 `voicetut_tts/webui/`, performs a Python syntax check, then uploads the
 application to the Space. A new Space commit triggers its build and restart.
+The Space uses ZeroGPU request allocation through `@spaces.GPU`; the creator
+and visitors are subject to Hugging Face's current ZeroGPU eligibility and
+usage quotas.
 
 ## 4. Local preview
 
