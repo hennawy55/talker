@@ -1,3 +1,21 @@
+---
+title: Talker — VoiceTut-TTS
+emoji: "🎙️"
+colorFrom: blue
+colorTo: indigo
+sdk: gradio
+sdk_version: "5.49.1"
+python_version: "3.10"
+app_file: app.py
+license: apache-2.0
+short_description: Egyptian Arabic and English text-to-speech
+models:
+  - mohammedaly22/VoiceTut-TTS
+suggested_hardware: t4-small
+preload_from_hub:
+  - mohammedaly22/VoiceTut-TTS
+---
+
 <div align="center">
 
 <img src="assets/VoiceTut-TTS-Banner.png" alt="VoiceTut-TTS" width="100%" />
@@ -21,6 +39,8 @@
 VoiceTut-TTS is an Egyptian-Arabic text-to-speech system fine-tuned from [OmniVoice](https://github.com/k2-fsa/OmniVoice). It produces natural Egyptian speech with seamless **Arabic ↔ English code-switching**, ships **19 built-in voices**, supports **zero-shot voice cloning**, and includes a robust Egyptian-Arabic **text normalization** pipeline plus **true streaming** for long text.
 
 > **Why "VoiceTut"?** *Tut* — after the boy-king **Tutankhamun** (توت عنخ آمون) — anchors the model in Egyptian identity, just as our companion ASR model **[QwenCleo-ASR](https://github.com/MohammedAly22/qwencleo-asr)** is named after **Cleopatra**. Together they form an Egyptian speech stack: **Cleo listens, Tut speaks.** 🎙️🗣️
+
+> **Deploy this fork:** see [DEPLOY_WEB.md](DEPLOY_WEB.md) for publishing the complete web app to your own Hugging Face Space. The React interface requires the Python/Gradio API; it is not a standalone static site.
 
 ## ✨ Features
 
