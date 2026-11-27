@@ -1,0 +1,6 @@
+# Runtime dependencies for the Gradio Space.
+# Hugging Face selects the Python runtime and the Gradio version from README.md.
+spaces
+torch
+omnivoice @ git+https://github.com/k2-fsa/OmniVoice.git
+-e .[web]
