@@ -1,0 +1,60 @@
+name: Talker Android Engine Compatibility Probe
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - android-offline
+    paths:
+      - ".github/workflows/android-engine-probe.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  android-arm64:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Talker
+        uses: actions/checkout@v5
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build
+
+      - name: Checkout pinned audio.cpp source
+        run: |
+          git clone --filter=blob:none https://github.com/0xShug0/audio.cpp.git third_party/audio.cpp
+          cd third_party/audio.cpp
+          git checkout f4e28c7bfb482b5b77c6017b35d4fe2f87bacc10
+          git submodule update --init --recursive
+
+      - name: Configure Android arm64 C API
+        run: |
+          cmake -S third_party/audio.cpp -B build/audio-android \
+            -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_LATEST_HOME/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=arm64-v8a \
+            -DANDROID_PLATFORM=android-26 \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+            -DAUDIOCPP_BUILD_C_API=ON \
+            -DAUDIOCPP_MODEL_SET=custom \
+            -DAUDIOCPP_MODELS=omnivoice \
+            -DENGINE_ENABLE_OPENMP=OFF \
+            -DENGINE_ENABLE_NATIVE_CPU=OFF \
+            -DENGINE_ENABLE_CUDA=OFF \
+            -DENGINE_ENABLE_HIP=OFF \
+            -DENGINE_ENABLE_VULKAN=OFF \
+            -DENGINE_ENABLE_METAL=OFF \
+            -DENGINE_ENABLE_SYCL=OFF \
+            -DENGINE_ENABLE_WEBGPU=OFF
+
+      - name: Build native inference library
+        run: cmake --build build/audio-android --target audiocpp --parallel 2
+
+      - name: Verify Android shared library
+        run: |
+          find build/audio-android -type f -name 'libaudiocpp.so' -print -exec file {} \;
+          test -n "$(find build/audio-android -type f -name 'libaudiocpp.so' -print -quit)"
