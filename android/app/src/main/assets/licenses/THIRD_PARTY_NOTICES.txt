@@ -1,0 +1,18 @@
+Talker Offline — third-party notices
+
+VoiceTut-TTS
+- Project: https://github.com/MohammedAly22/VoiceTuT-TTS
+- Model: https://huggingface.co/mohammedaly22/VoiceTut-TTS-GGUF
+- Author / maintainer: Mohammed Aly
+- The 19 reference-speaker WAV files and their transcripts are obtained from the
+  VoiceTuT-TTS reference_speakers directory.
+- Licensed under Apache License 2.0. See VOICETUT_APACHE_2.0.txt.
+
+audio.cpp
+- Project: https://github.com/0xShug0/audio.cpp
+- Android integration is pinned to commit f4e28c7bfb482b5b77c6017b35d4fe2f87bacc10.
+- Copyright 2026 ShugoAI LLC.
+- Licensed under Apache License 2.0. See AUDIO_CPP_APACHE_2.0.txt.
+
+VoiceTut model files are distributed by their respective Hugging Face repository.
+Check the model repository's model card for its current license and usage terms.

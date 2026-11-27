@@ -450,7 +450,8 @@ class MainActivity : Activity() {
                 }
                 if (connection.responseCode !in 200..299) error("HTTP " + connection.responseCode)
                 val total = connection.contentLengthLong
-                external = contentResolver.openOutputStream(uri,"w") ?: error("تعذر فتح مكان الحفظ الخارجي")
+                val externalStream = contentResolver.openOutputStream(uri,"w") ?: error("تعذر فتح مكان الحفظ الخارجي")
+                external = externalStream
                 connection.inputStream.use { input ->
                     FileOutputStream(temp).use { local ->
                         val buffer = ByteArray(1024*1024)
@@ -459,7 +460,7 @@ class MainActivity : Activity() {
                             val count = input.read(buffer)
                             if (count < 0) break
                             local.write(buffer,0,count)
-                            external.write(buffer,0,count)
+                            externalStream.write(buffer,0,count)
                             received += count
                             val percent = if (total > 0) ((received*100)/total).toInt() else 0
                             runOnUiThread {
@@ -471,8 +472,8 @@ class MainActivity : Activity() {
                         local.fd.sync()
                     }
                 }
-                external.flush()
-                external.close()
+                externalStream.flush()
+                externalStream.close()
                 external = null
                 validateModelFile(temp)
                 promoteModelFile(temp)
