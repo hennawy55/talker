@@ -18,7 +18,7 @@ set(ENGINE_ENABLE_SYCL OFF CACHE BOOL "" FORCE)
 set(ENGINE_ENABLE_WEBGPU OFF CACHE BOOL "" FORCE)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-add_subdirectory("${AUDIOCPP_SOURCE_DIR}" audio_cpp)
+add_subdirectory("${AUDIOCPP_SOURCE_DIR}" audio_cpp EXCLUDE_FROM_ALL)
 
 add_library(talker_jni SHARED native-lib.cpp)
 target_include_directories(talker_jni PRIVATE "${AUDIOCPP_SOURCE_DIR}/include")
