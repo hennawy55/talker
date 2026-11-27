@@ -2,12 +2,17 @@ package com.talker.offline
 
 import android.Manifest
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.ContentProvider
 import android.content.ContentValues
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.database.Cursor
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.media.AudioFormat
@@ -28,7 +33,12 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.concurrent.Executors
+import org.json.JSONArray
+import org.json.JSONObject
 
 class MainActivity : Activity() {
     companion object {
@@ -44,12 +54,33 @@ class MainActivity : Activity() {
     }
 
     private external fun nativeLoad(modelPath: String): String?
-    private external fun nativeGenerate(text: String, language: String, voice: FloatArray?, voiceRate: Int, voiceChannels: Int, referenceText: String?): FloatArray?
+    private external fun nativeGenerate(
+        text: String,
+        language: String,
+        voice: FloatArray?,
+        voiceRate: Int,
+        voiceChannels: Int,
+        referenceText: String?,
+        numSteps: Int,
+        guidanceScale: Float,
+        speed: Float,
+        denoise: Boolean,
+        preprocessPrompt: Boolean,
+        postprocessOutput: Boolean
+    ): FloatArray?
     private external fun nativeLastError(): String
     private external fun nativeSampleRate(): Int
     private external fun nativeClose()
 
     private data class Voice(val key:String,val ar:String,val en:String,val gender:String,val file:String,val text:String)
+    private data class GenerationRecord(
+        val id:Long,
+        val fileName:String,
+        val text:String,
+        val voice:String,
+        val duration:Double,
+        val createdAt:Long
+    )
     private val voices = listOf(
         Voice("ahmed","أحمد","Ahmed","male","ahmed.wav","يعني كل ما تيجي تفكر ان الدنيا بايظة و ان الحياة مش قد كدة، اِفتكر ان ربنا موجود و انه قادر على كل شئ."),
         Voice("ali","علي","Ali","male","ali.wav","ااه، كل ما تيجي تفكر ان الدنيا وحشة و ان حياتك مليانة مشاكل، اِفتكر انك ف نعم كبيرة انت مش عارف عددها."),
@@ -75,17 +106,20 @@ class MainActivity : Activity() {
     private val executor = Executors.newSingleThreadExecutor()
     private val modelUrl = "https://huggingface.co/mohammedaly22/VoiceTut-TTS-GGUF/resolve/main/voicetut-tts-q8_0.gguf"
     private val modelName = "voicetut-tts-q8_0.gguf"
-    private val bg = Color.rgb(10,14,23)
-    private val surface = Color.rgb(22,29,43)
-    private val surface2 = Color.rgb(30,39,57)
-    private val field = Color.rgb(16,23,36)
-    private val accent = Color.rgb(111,143,255)
-    private val accent2 = Color.rgb(68,206,178)
-    private val muted = Color.rgb(157,171,195)
-    private val white = Color.rgb(244,247,255)
+    // Flat white + turquoise theme. No gradients.
+    private val bg = Color.rgb(244,249,248)
+    private val surface = Color.WHITE
+    private val surface2 = Color.rgb(230,244,242)
+    private val field = Color.rgb(247,251,250)
+    private val accent = Color.rgb(0,151,143)
+    private val accent2 = Color.rgb(0,112,108)
+    private val muted = Color.rgb(91,117,119)
+    private val white = Color.rgb(22,49,51)
 
     private lateinit var pages:List<View>
-    private lateinit var navLabels:List<TextView>
+    private lateinit var navLabels:List<LinearLayout>
+    private lateinit var navIcons:List<NavIconView>
+    private lateinit var navTitles:List<TextView>
     private lateinit var headerTitle:TextView
     private lateinit var headerSubtitle:TextView
     private lateinit var modelStatus:TextView
@@ -109,12 +143,36 @@ class MainActivity : Activity() {
     private lateinit var customVoiceStatus:TextView
     private lateinit var recordCustomButton:Button
     private lateinit var recordStatusText:TextView
+    private lateinit var stepsValueText:TextView
+    private lateinit var guidanceValueText:TextView
+    private lateinit var speedValueText:TextView
+    private lateinit var stepsSeekBar:SeekBar
+    private lateinit var guidanceSeekBar:SeekBar
+    private lateinit var speedSeekBar:SeekBar
+    private lateinit var denoiseCheckBox:CheckBox
+    private lateinit var preprocessCheckBox:CheckBox
+    private lateinit var postprocessCheckBox:CheckBox
+    private lateinit var splitSentencesCheckBox:CheckBox
+    private lateinit var historyCountText:TextView
+    private lateinit var historyContainer:LinearLayout
+    private lateinit var compareHistoryButton:Button
 
     private var modelLoading = false
     private var modelDownloading = false
     private var engineReady = false
     private var player:MediaPlayer? = null
     private var lastOutput:File? = null
+    private var pendingSaveFile:File? = null
+    private var playingHistoryFileName:String? = null
+    private val generationHistory = mutableListOf<GenerationRecord>()
+    private val compareHistoryIds = linkedSetOf<Long>()
+    private var generationSteps = 32
+    private var guidanceScale = 2.0f
+    private var speakingSpeed = 1.0f
+    private var denoiseReference = true
+    private var preprocessReference = true
+    private var postprocessGeneratedAudio = true
+    private var splitIntoSeparateSentences = false
     private var activeVoiceKey:String? = null
     private var activeVoiceTitle = "الصوت التلقائي"
     private var activeVoiceSamples:FloatArray? = null
@@ -140,13 +198,15 @@ class MainActivity : Activity() {
             window.isStatusBarContrastEnforced = false
             window.isNavigationBarContrastEnforced = false
         }
-        window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
+        window.decorView.systemUiVisibility =
+            View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
         buildShell()
         requestNotificationPermission()
         refreshModelStatus()
         refreshVoiceLibraryStatus()
         installBundledVoiceLibrary()
         restoreSavedPreferences()
+        restoreGenerationHistory()
         if (isValidModel(modelFile(),true)) loadEngine()
     }
 
@@ -173,7 +233,7 @@ class MainActivity : Activity() {
             text = "  OFFLINE  "
             textSize = 10f
             setTextColor(accent2)
-            background = rounded(Color.rgb(24,63,62),50)
+            background = rounded(surface2,50)
             setPadding(dp(9),dp(5),dp(9),dp(5))
         }
         brandRow.addView(brand,LinearLayout.LayoutParams(0,-2,1f))
@@ -210,21 +270,38 @@ class MainActivity : Activity() {
             background = rounded(surface,22)
         }
         val titles = listOf("الإعدادات","التوليد","الأصوات")
-        val icons = listOf("⚙","◉","♫")
-        val items = mutableListOf<TextView>()
+        val iconNames = listOf("settings","wave","voice")
+        val items = mutableListOf<LinearLayout>()
+        val icons = mutableListOf<NavIconView>()
+        val titleViews = mutableListOf<TextView>()
         titles.forEachIndexed { index,title ->
-            val item = TextView(this).apply {
-                text = icons[index] + "\n" + title
+            val icon = NavIconView(iconNames[index],muted)
+            val titleView = TextView(this).apply {
+                text = title
                 textSize = 11f
                 gravity = Gravity.CENTER
-                setPadding(dp(3),dp(7),dp(3),dp(7))
                 setTextColor(muted)
+                typeface = Typeface.DEFAULT_BOLD
+            }
+            val item = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                background = rounded(surface,14)
+                setPadding(dp(4),dp(7),dp(4),dp(7))
+                addView(icon,LinearLayout.LayoutParams(dp(22),dp(22)))
+                addView(titleView,LinearLayout.LayoutParams(-2,-2).apply { topMargin = dp(3) })
                 setOnClickListener { showPage(index) }
             }
-            nav.addView(item,LinearLayout.LayoutParams(0,dp(52),1f))
+            nav.addView(item,LinearLayout.LayoutParams(0,dp(58),1f).apply {
+                marginStart = dp(3); marginEnd = dp(3)
+            })
             items.add(item)
+            icons.add(icon)
+            titleViews.add(titleView)
         }
         navLabels = items
+        navIcons = icons
+        navTitles = titleViews
         val navWrap = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(14),dp(8),dp(14),dp(9))
@@ -301,7 +378,8 @@ class MainActivity : Activity() {
 
     private fun buildGenerationPage():View {
         val content = pageContent()
-        addSection(content,"إنشاء الصوت","اكتب النص، اختر اللغة والصوت، ثم أنشئ ملف WAV.")
+        addSection(content,"إنشاء الصوت","اكتب النص واضبط النتيجة ثم أنشئ مقطعًا واحدًا أو مقطعًا مستقلًا لكل جملة.")
+
         val inputCard = card()
         inputCard.addView(label("لغة النطق",14,white,true))
         generationLanguage = Spinner(this).apply {
@@ -322,27 +400,166 @@ class MainActivity : Activity() {
         inputCard.addView(generateButton,fullWidth().apply { topMargin = dp(14) })
         content.addView(inputCard,fullWidth().apply { topMargin = dp(8) })
 
+        val tuning = card()
+        tuning.addView(label("ضبط جودة الصوت",17,white,true))
+        tuning.addView(label("القيم التالية تُرسل مباشرة إلى محرك VoiceTut.",12,muted,false,5))
+        val stepsControl = addFlatSlider(tuning,"خطوات التوليد",8f,64f,1f,32f) {
+            generationSteps = it.toInt()
+            persistGenerationSettings()
+        }
+        stepsSeekBar = stepsControl.first
+        stepsValueText = stepsControl.second
+        val guidanceControl = addFlatSlider(tuning,"قوة الالتزام بالنص",0f,5f,0.1f,2f) {
+            guidanceScale = it
+            persistGenerationSettings()
+        }
+        guidanceSeekBar = guidanceControl.first
+        guidanceValueText = guidanceControl.second
+        val speedControl = addFlatSlider(tuning,"سرعة النطق",0.5f,2.0f,0.05f,1.0f) {
+            speakingSpeed = it
+            persistGenerationSettings()
+        }
+        speedSeekBar = speedControl.first
+        speedValueText = speedControl.second
+
+        denoiseCheckBox = settingsCheck("تقليل أثر التسجيل المرجعي (Denoise)",true) {
+            denoiseReference = it
+            persistGenerationSettings()
+        }
+        tuning.addView(denoiseCheckBox)
+        preprocessCheckBox = settingsCheck("تنقية وتجهيز الصوت المرجعي قبل الاستنساخ",true) {
+            preprocessReference = it
+            persistGenerationSettings()
+        }
+        tuning.addView(preprocessCheckBox)
+        postprocessCheckBox = settingsCheck("معالجة الصوت الناتج وتشذيب البداية والنهاية",true) {
+            postprocessGeneratedAudio = it
+            persistGenerationSettings()
+        }
+        tuning.addView(postprocessCheckBox)
+        splitSentencesCheckBox = settingsCheck("إنشاء مقطع WAV منفصل لكل جملة",false) {
+            splitIntoSeparateSentences = it
+            persistGenerationSettings()
+        }
+        tuning.addView(splitSentencesCheckBox)
+        content.addView(tuning,fullWidth().apply { topMargin = dp(12) })
+
         val output = card()
-        output.addView(label("النتيجة",18,white,true))
+        output.addView(label("النتيجة الأخيرة",18,white,true))
         outputStatus = label("لم يتم إنشاء ملف صوتي بعد",13,muted,false,8)
         output.addView(outputStatus)
         playOutputButton = primaryButton("تشغيل آخر ملف صوتي")
         playOutputButton.setOnClickListener { playLastOutput() }
         playOutputButton.isEnabled = false
         output.addView(playOutputButton,fullWidth().apply { topMargin = dp(12) })
-        val save = secondaryButton("حفظ الصوت في الملفات")
+        val save = secondaryButton("حفظ آخر مقطع في الملفات")
         save.setOnClickListener { saveLastOutput() }
         output.addView(save,fullWidth().apply { topMargin = dp(8) })
-        val share = secondaryButton("مشاركة الصوت")
+        val share = secondaryButton("مشاركة آخر مقطع")
         share.setOnClickListener { shareLastOutput() }
         output.addView(share,fullWidth().apply { topMargin = dp(8) })
         content.addView(output,fullWidth().apply { topMargin = dp(14) })
 
+        val history = card()
+        val historyHeader = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        historyCountText = label("سجل المقاطع (0)",16,white,true)
+        historyHeader.addView(historyCountText,LinearLayout.LayoutParams(0,-2,1f))
+        compareHistoryButton = secondaryButton("مقارنة مقطعين")
+        compareHistoryButton.isEnabled = false
+        compareHistoryButton.setOnClickListener { compareSelectedHistory() }
+        historyHeader.addView(compareHistoryButton)
+        history.addView(historyHeader)
+        history.addView(label("كل نتيجة محفوظة كملف مستقل. اختر مقطعين للمقارنة أو شغّل واحفظ وشارك كل مقطع على حدة.",12,muted,false,5))
+        historyContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0,dp(9),0,0)
+        }
+        history.addView(historyContainer,fullWidth().apply { topMargin = dp(5) })
+        content.addView(history,fullWidth().apply { topMargin = dp(14) })
+
         val tip = card()
-        tip.addView(label("نصيحة",14,white,true))
-        tip.addView(label("للاستنساخ، اختر صوتًا جاهزًا من صفحة الأصوات أو أضف تسجيلك الخاص مع النص المطابق له. اترك الاختيار على الصوت التلقائي لاستخدام الصوت الافتراضي للمحرك.",13,muted,false,7))
+        tip.addView(label("نصيحة لتحسين الاستنساخ",14,white,true))
+        tip.addView(label("استخدم تسجيلًا واضحًا بصوت متحدث واحد، وفعّل تنقية التسجيل ومعالجة البداية والنهاية. جرّب تغيير قوة الالتزام والسرعة مع الاحتفاظ بالمقاطع السابقة للمقارنة.",13,muted,false,7))
         content.addView(tip,fullWidth().apply { topMargin = dp(12) })
+        refreshGenerationHistory()
         return wrapPage(content)
+    }
+
+    private fun addFlatSlider(
+        container:LinearLayout,
+        title:String,
+        minimum:Float,
+        maximum:Float,
+        step:Float,
+        initial:Float,
+        onChanged:(Float)->Unit
+    ):Pair<SeekBar,TextView> {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0,dp(11),0,0)
+        }
+        row.addView(label(title,13,white,true),LinearLayout.LayoutParams(0,-2,1f))
+        val valueText = TextView(this).apply {
+            text = formatSettingValue(initial,step)
+            textSize = 12f
+            setTextColor(accent2)
+            typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.LEFT
+        }
+        row.addView(valueText,LinearLayout.LayoutParams(dp(62),-2))
+        container.addView(row,fullWidth())
+        val seek = SeekBar(this).apply {
+            max = ((maximum - minimum) / step).toInt()
+            progress = ((initial - minimum) / step).toInt().coerceIn(0,max)
+            progressTintList = android.content.res.ColorStateList.valueOf(accent)
+            thumbTintList = android.content.res.ColorStateList.valueOf(accent2)
+            progressBackgroundTintList = android.content.res.ColorStateList.valueOf(Color.rgb(209,226,224))
+        }
+        seek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(bar:SeekBar, progress:Int, fromUser:Boolean) {
+                val value = minimum + progress * step
+                valueText.text = formatSettingValue(value,step)
+                onChanged(value)
+            }
+            override fun onStartTrackingTouch(bar:SeekBar) {}
+            override fun onStopTrackingTouch(bar:SeekBar) {}
+        })
+        container.addView(seek,fullWidth().apply { topMargin = dp(1) })
+        return Pair(seek,valueText)
+    }
+
+    private fun formatSettingValue(value:Float,step:Float):String =
+        when {
+            step >= 1f -> value.toInt().toString()
+            step >= 0.1f -> String.format(Locale.US,"%.1f",value)
+            else -> String.format(Locale.US,"%.2f×",value)
+        }
+
+    private fun settingsCheck(text:String,initial:Boolean,onChanged:(Boolean)->Unit):CheckBox =
+        CheckBox(this).apply {
+            this.text = text
+            isChecked = initial
+            textSize = 12.5f
+            setTextColor(white)
+            buttonTintList = android.content.res.ColorStateList.valueOf(accent)
+            setPadding(0,dp(3),0,dp(3))
+            setOnCheckedChangeListener { _,checked -> onChanged(checked) }
+        }
+
+    private fun persistGenerationSettings() {
+        preferences.edit()
+            .putInt("generation_steps",generationSteps)
+            .putFloat("generation_guidance",guidanceScale)
+            .putFloat("generation_speed",speakingSpeed)
+            .putBoolean("generation_denoise",denoiseReference)
+            .putBoolean("generation_preprocess",preprocessReference)
+            .putBoolean("generation_postprocess",postprocessGeneratedAudio)
+            .putBoolean("generation_split_sentences",splitIntoSeparateSentences)
+            .apply()
     }
 
     private fun buildVoicesPage():View {
@@ -452,8 +669,9 @@ class MainActivity : Activity() {
         headerSubtitle.text = subtitles[selected]
         navLabels.forEachIndexed { i,item ->
             val active = i == selected
-            item.setTextColor(if (active) accent else muted)
-            item.background = if (active) rounded(Color.rgb(34,47,76),16) else rounded(surface,16)
+            navIcons[i].setTint(if (active) accent else muted)
+            navTitles[i].setTextColor(if (active) accent2 else muted)
+            item.background = rounded(if (active) Color.rgb(216,241,238) else surface,14)
         }
         if (selected == 2) refreshPresetCards()
     }
@@ -977,11 +1195,32 @@ class MainActivity : Activity() {
                 .putInt("generation_language", generationLanguage.selectedItemPosition)
                 .putString("last_text", if (::textInput.isInitialized) textInput.text.toString() else "")
                 .putString("custom_reference_text", if (::customTranscriptInput.isInitialized) customTranscriptInput.text.toString() else "")
+                .putInt("generation_steps",generationSteps)
+                .putFloat("generation_guidance",guidanceScale)
+                .putFloat("generation_speed",speakingSpeed)
+                .putBoolean("generation_denoise",denoiseReference)
+                .putBoolean("generation_preprocess",preprocessReference)
+                .putBoolean("generation_postprocess",postprocessGeneratedAudio)
+                .putBoolean("generation_split_sentences",splitIntoSeparateSentences)
                 .apply()
         }
     }
 
     private fun restoreSavedPreferences() {
+        generationSteps = preferences.getInt("generation_steps",32).coerceIn(8,64)
+        guidanceScale = preferences.getFloat("generation_guidance",2.0f).coerceIn(0f,5f)
+        speakingSpeed = preferences.getFloat("generation_speed",1.0f).coerceIn(0.5f,2.0f)
+        denoiseReference = preferences.getBoolean("generation_denoise",true)
+        preprocessReference = preferences.getBoolean("generation_preprocess",true)
+        postprocessGeneratedAudio = preferences.getBoolean("generation_postprocess",true)
+        splitIntoSeparateSentences = preferences.getBoolean("generation_split_sentences",false)
+        stepsSeekBar.progress = generationSteps - 8
+        guidanceSeekBar.progress = (guidanceScale * 10f).toInt().coerceIn(0,50)
+        speedSeekBar.progress = ((speakingSpeed - 0.5f) / 0.05f).toInt().coerceIn(0,30)
+        denoiseCheckBox.isChecked = denoiseReference
+        preprocessCheckBox.isChecked = preprocessReference
+        postprocessCheckBox.isChecked = postprocessGeneratedAudio
+        splitSentencesCheckBox.isChecked = splitIntoSeparateSentences
         val language = preferences.getInt("generation_language", 0).coerceIn(0, 1)
         generationLanguage.setSelection(language)
         textInput.setText(preferences.getString("last_text", "") ?: "")
@@ -1092,6 +1331,13 @@ class MainActivity : Activity() {
         if (::outputStatus.isInitialized && lastOutput == null) outputStatus.text = "الصوت المحدد: " + activeVoiceTitle + " — لا توجد نتيجة بعد"
     }
 
+    private fun splitSpeechText(text:String):List<String> {
+        val normalized = text.replace("\r\n","\n").replace('\r','\n')
+        return normalized.split(Regex("(?<=[.!?؟؛])\\s+|\\n+"))
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+    }
+
     private fun generateAudio() {
         val text = textInput.text.toString().trim()
         if (text.isEmpty()) { textInput.error = "اكتب النص أولًا"; return }
@@ -1100,62 +1346,248 @@ class MainActivity : Activity() {
         val ref = activeVoiceSamples
         val transcript = activeReferenceText
         if (ref != null && transcript.isNullOrBlank()) { toast("النص المرجعي للصوت غير متوفر"); showPage(2); return }
-        generateButton.isEnabled = false
-        persistUiPreferences()
-        beginLongTask("توليد ملف صوتي", "media")
-        generateButton.text = "جارٍ إنشاء الصوت..."
-        outputStatus.text = "جارٍ توليد الصوت محليًا..."
+
+        val segments = if (splitIntoSeparateSentences) splitSpeechText(text) else listOf(text)
+        if (segments.isEmpty()) { toast("لم يتم العثور على جمل صالحة للتوليد"); return }
+        if (segments.size > 25) { toast("الحد الأقصى 25 جملة في العملية الواحدة"); return }
+
         val languageCode = if (generationLanguage.selectedItemPosition == 0) "arz" else "en"
         val refRate = activeVoiceRate
         val refChannels = activeVoiceChannels
+        val voiceName = activeVoiceTitle
+        val selectedSteps = generationSteps
+        val selectedGuidance = guidanceScale
+        val selectedSpeed = speakingSpeed
+        val selectedDenoise = denoiseReference
+        val selectedPreprocess = preprocessReference
+        val selectedPostprocess = postprocessGeneratedAudio
+
+        generateButton.isEnabled = false
+        persistUiPreferences()
+        beginLongTask("توليد " + segments.size + " مقطع صوتي", "media")
+        generateButton.text = "جارٍ إنشاء الصوت..."
+        outputStatus.text = "جارٍ تجهيز التوليد المحلي..."
         executor.execute {
-            var succeeded = false
+            var generatedCount = 0
+            var lastFile:File? = null
+            var failureMessage:String? = null
             try {
-                val audio = nativeGenerate(text,languageCode,ref,refRate,refChannels,if (ref != null) transcript else null)
-                    ?: error(nativeLastError())
-                val rate = nativeSampleRate()
-                val out = File(filesDir, "audio-" + System.currentTimeMillis() + ".wav")
-                writeWav(out,audio,rate,1)
-                lastOutput = out
-                succeeded = true
-                runOnUiThread {
-                    generateButton.text = "إنشاء الصوت مرة أخرى"
-                    outputStatus.text = "اكتمل إنشاء الملف — " + out.name + " (" + out.length()/1024 + " KB)"
-                    playOutputButton.isEnabled = true
-                    toast("تم إنشاء الصوت وحفظه داخل Talker")
+                segments.forEachIndexed { index,segment ->
+                    runOnUiThread {
+                        outputStatus.text = if (segments.size > 1)
+                            "جارٍ إنشاء المقطع " + (index+1) + " من " + segments.size
+                        else "جارٍ توليد الصوت محليًا..."
+                    }
+                    val audio = nativeGenerate(
+                        segment,languageCode,ref,refRate,refChannels,
+                        if (ref != null) transcript else null,
+                        selectedSteps,selectedGuidance,selectedSpeed,
+                        selectedDenoise,selectedPreprocess,selectedPostprocess
+                    ) ?: error(nativeLastError())
+                    val rate = nativeSampleRate()
+                    val out = File(filesDir,"audio-" + System.currentTimeMillis() + "-" + (index+1) + ".wav")
+                    writeWav(out,audio,rate,1)
+                    val duration = audio.size.toDouble() / rate.toDouble()
+                    val item = GenerationRecord(
+                        System.currentTimeMillis(),
+                        out.name,
+                        segment,
+                        voiceName,
+                        duration,
+                        System.currentTimeMillis()
+                    )
+                    lastFile = out
+                    generatedCount++
+                    runOnUiThread {
+                        lastOutput = out
+                        addGenerationRecord(item)
+                        outputStatus.text = "تم إنشاء " + generatedCount + " من " + segments.size +
+                            " — " + out.name + " (" + out.length()/1024 + " KB)"
+                        playOutputButton.isEnabled = true
+                        generateButton.text = "إنشاء الصوت مرة أخرى"
+                    }
                 }
             } catch (e:Exception) {
+                failureMessage = e.message ?: "حدث خطأ غير معروف"
                 runOnUiThread {
-                    generateButton.text = "إعادة محاولة التوليد"
-                    outputStatus.text = "فشل إنشاء الصوت: " + e.message
-                    toast("فشل التوليد: " + e.message)
+                    outputStatus.text = "تم إنشاء " + generatedCount + " مقطع قبل الخطأ: " + failureMessage
+                    toast("فشل التوليد: " + failureMessage)
                 }
             } finally {
-                runOnUiThread { generateButton.isEnabled = engineReady }
+                val allSucceeded = failureMessage == null && generatedCount == segments.size
+                runOnUiThread {
+                    generateButton.isEnabled = engineReady
+                    if (generatedCount > 0) {
+                        lastOutput = lastFile
+                        playOutputButton.isEnabled = true
+                        refreshGenerationHistory()
+                        if (allSucceeded) {
+                            outputStatus.text = if (generatedCount == 1)
+                                "اكتمل المقطع وحُفظ في سجل المقاطع"
+                            else "اكتمل إنشاء " + generatedCount + " مقاطع مستقلة وحُفظت في السجل"
+                        }
+                    } else if (failureMessage != null) {
+                        generateButton.text = "إعادة محاولة التوليد"
+                    }
+                }
                 finishLongTask(
-                    if (succeeded) "اكتمل توليد الصوت" else "فشل توليد الصوت",
-                    if (succeeded) "تم إنشاء ملف WAV وحفظه داخل Talker." else "حدث خطأ أثناء توليد الصوت.",
-                    succeeded
+                    if (allSucceeded) "اكتمل توليد الصوت" else "تعذر إكمال التوليد",
+                    if (allSucceeded) "تم حفظ " + generatedCount + " مقطع WAV مستقل."
+                    else "تم إنشاء " + generatedCount + " مقطع. " + (failureMessage ?: ""),
+                    allSucceeded
                 )
             }
         }
     }
 
-    private fun findLastOutput():File? = lastOutput?.takeIf { it.isFile } ?: filesDir.listFiles()
-        ?.filter { it.name.startsWith("audio-") && it.extension == "wav" }
-        ?.maxByOrNull { it.lastModified() }
+    private fun findLastOutput():File? =
+        lastOutput?.takeIf { it.isFile } ?: generationHistory.asSequence().mapNotNull { historyFile(it) }.firstOrNull()
+        ?: filesDir.listFiles()
+            ?.filter { it.name.startsWith("audio-") && it.extension == "wav" }
+            ?.maxByOrNull { it.lastModified() }
 
-    private fun playLastOutput() {
-        val file = findLastOutput()
-        if (file == null) { toast("لا يوجد ملف صوتي محفوظ بعد"); return }
+    private fun historyFile(item:GenerationRecord):File? {
+        val name = File(item.fileName).name
+        if (name != item.fileName) return null
+        return File(filesDir,name).takeIf { it.isFile }
+    }
+
+    private fun addGenerationRecord(item:GenerationRecord) {
+        generationHistory.removeAll { it.id == item.id }
+        generationHistory.add(0,item)
+        while (generationHistory.size > 80) {
+            val removed = generationHistory.removeAt(generationHistory.lastIndex)
+            historyFile(removed)?.delete()
+            compareHistoryIds.remove(removed.id)
+        }
+        persistGenerationHistory()
+        refreshGenerationHistory()
+    }
+
+    private fun persistGenerationHistory() {
+        val array = JSONArray()
+        generationHistory.forEach { item ->
+            array.put(JSONObject().apply {
+                put("id",item.id)
+                put("file",item.fileName)
+                put("text",item.text)
+                put("voice",item.voice)
+                put("duration",item.duration)
+                put("created",item.createdAt)
+            })
+        }
+        preferences.edit().putString("generation_history",array.toString()).apply()
+    }
+
+    private fun restoreGenerationHistory() {
+        generationHistory.clear()
         try {
-            if (player != null && player?.isPlaying == true) {
-                player?.pause()
-                playOutputButton.text = "متابعة تشغيل الصوت"
-                return
+            val raw = preferences.getString("generation_history","[]") ?: "[]"
+            val array = JSONArray(raw)
+            for (index in 0 until array.length()) {
+                val item = array.optJSONObject(index) ?: continue
+                val record = GenerationRecord(
+                    item.optLong("id"),
+                    item.optString("file"),
+                    item.optString("text"),
+                    item.optString("voice"),
+                    item.optDouble("duration"),
+                    item.optLong("created")
+                )
+                if (historyFile(record) != null) generationHistory.add(record)
             }
-            if (player != null) {
-                try { player?.start(); playOutputButton.text = "إيقاف مؤقت"; return } catch (_:Exception) {}
+        } catch (_:Exception) {
+            generationHistory.clear()
+        }
+        refreshGenerationHistory()
+        val latest = generationHistory.firstOrNull()
+        if (latest != null) {
+            lastOutput = historyFile(latest)
+            playOutputButton.isEnabled = lastOutput != null
+            outputStatus.text = "آخر مقطع محفوظ: " + latest.text.take(65)
+        }
+    }
+
+    private fun refreshGenerationHistory() {
+        if (!::historyContainer.isInitialized) return
+        historyContainer.removeAllViews()
+        historyCountText.text = "سجل المقاطع (" + generationHistory.size + ")"
+        compareHistoryButton.isEnabled = compareHistoryIds.size == 2
+        compareHistoryButton.text = if (compareHistoryIds.size == 2) "مقارنة المقطعين المحددين" else "حدد مقطعين للمقارنة"
+        if (generationHistory.isEmpty()) {
+            historyContainer.addView(label("لم يتم إنشاء مقاطع بعد. ستظهر هنا كل النتائج بشكل منفصل.",12,muted,false,8))
+            return
+        }
+        generationHistory.forEach { item ->
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(11),dp(10),dp(11),dp(10))
+                background = rounded(surface2,13)
+            }
+            row.addView(label(item.text,13,white,true))
+            val created = SimpleDateFormat("dd/MM  HH:mm",Locale.getDefault()).format(Date(item.createdAt))
+            row.addView(label(item.voice + "  •  " + formatHistoryDuration(item.duration) + "  •  " + created,11,muted,false,4))
+            val actions = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER
+                setPadding(0,dp(8),0,0)
+            }
+            actions.addView(historyAction("play","تشغيل") { playHistoryRecord(item) },LinearLayout.LayoutParams(0,dp(46),1f).apply { marginEnd = dp(4) })
+            actions.addView(historyAction("save","حفظ") { saveHistoryRecord(item) },LinearLayout.LayoutParams(0,dp(46),1f).apply { marginEnd = dp(4) })
+            actions.addView(historyAction("share","مشاركة") { shareHistoryRecord(item) },LinearLayout.LayoutParams(0,dp(46),1f).apply { marginEnd = dp(4) })
+            actions.addView(historyAction("delete","حذف") { deleteHistoryRecord(item) },LinearLayout.LayoutParams(0,dp(46),1f))
+            row.addView(actions)
+            val compare = CheckBox(this).apply {
+                text = "اختيار للمقارنة"
+                textSize = 11f
+                setTextColor(muted)
+                buttonTintList = android.content.res.ColorStateList.valueOf(accent)
+                isChecked = compareHistoryIds.contains(item.id)
+                setOnCheckedChangeListener { _,checked ->
+                    if (checked) {
+                        if (compareHistoryIds.size >= 2) compareHistoryIds.remove(compareHistoryIds.first())
+                        compareHistoryIds.add(item.id)
+                    } else compareHistoryIds.remove(item.id)
+                    compareHistoryButton.isEnabled = compareHistoryIds.size == 2
+                    compareHistoryButton.text = if (compareHistoryIds.size == 2) "مقارنة المقطعين المحددين" else "حدد مقطعين للمقارنة"
+                }
+            }
+            row.addView(compare)
+            historyContainer.addView(row,fullWidth().apply { bottomMargin = dp(8) })
+        }
+    }
+
+    private fun historyAction(icon:String,title:String,action:()->Unit):View {
+        val text = TextView(this).apply {
+            this.text = title
+            textSize = 10.5f
+            setTextColor(accent2)
+            gravity = Gravity.CENTER
+        }
+        val iconView = NavIconView(icon,accent2)
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            background = rounded(surface,10)
+            setPadding(dp(2),dp(3),dp(2),dp(3))
+            addView(iconView,LinearLayout.LayoutParams(dp(17),dp(17)))
+            addView(text,LinearLayout.LayoutParams(-1,-2))
+            setOnClickListener { action() }
+        }
+    }
+
+    private fun formatHistoryDuration(seconds:Double):String {
+        val total = seconds.toInt().coerceAtLeast(0)
+        return String.format(Locale.getDefault(),"%d:%02d",total/60,total%60)
+    }
+
+    private fun playHistoryRecord(item:GenerationRecord) {
+        val file = historyFile(item) ?: run { toast("ملف المقطع غير موجود"); return }
+        try {
+            if (playingHistoryFileName == file.name && player?.isPlaying == true) {
+                player?.pause()
+                toast("تم إيقاف المقطع مؤقتًا")
+                return
             }
             player?.release()
             player = MediaPlayer().apply {
@@ -1165,16 +1597,35 @@ class MainActivity : Activity() {
                 setOnCompletionListener {
                     it.release()
                     if (player === it) player = null
-                    runOnUiThread { playOutputButton.text = "تشغيل آخر ملف صوتي" }
+                    playingHistoryFileName = null
+                    if (::playOutputButton.isInitialized) playOutputButton.text = "تشغيل آخر ملف صوتي"
                 }
             }
-            playOutputButton.text = "إيقاف مؤقت"
+            playingHistoryFileName = file.name
             lastOutput = file
+            if (::playOutputButton.isInitialized) playOutputButton.text = "إيقاف مؤقت"
+        } catch (e:Exception) { toast("تعذر تشغيل المقطع: " + e.message) }
+    }
+
+    private fun playLastOutput() {
+        val file = findLastOutput()
+        val record = generationHistory.firstOrNull { historyFile(it)?.absolutePath == file?.absolutePath }
+        if (record != null) {
+            playHistoryRecord(record)
+            return
+        }
+        if (file == null) { toast("لا يوجد ملف صوتي محفوظ بعد"); return }
+        try {
+            player?.release()
+            player = MediaPlayer().apply { setDataSource(file.absolutePath); prepare(); start() }
+            lastOutput = file
+            playOutputButton.text = "إيقاف مؤقت"
         } catch (e:Exception) { toast("تعذر تشغيل الصوت: " + e.message) }
     }
-    private fun saveLastOutput() {
-        val file = findLastOutput()
-        if (file == null) { toast("لا يوجد ملف صوتي للحفظ"); return }
+
+    private fun saveHistoryRecord(item:GenerationRecord) {
+        val file = historyFile(item) ?: run { toast("ملف المقطع غير موجود"); return }
+        pendingSaveFile = file
         val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
             type = "audio/wav"
@@ -1183,9 +1634,20 @@ class MainActivity : Activity() {
         @Suppress("DEPRECATION")
         startActivityForResult(intent,SAVE_OUTPUT)
     }
-    private fun shareLastOutput() {
-        val file = findLastOutput()
-        if (file == null) { toast("لا يوجد ملف صوتي للمشاركة"); return }
+
+    private fun saveLastOutput() {
+        val file = findLastOutput() ?: run { toast("لا يوجد ملف صوتي للحفظ"); return }
+        pendingSaveFile = file
+        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "audio/wav"
+            putExtra(Intent.EXTRA_TITLE,file.name)
+        }
+        @Suppress("DEPRECATION")
+        startActivityForResult(intent,SAVE_OUTPUT)
+    }
+
+    private fun shareOutputFile(file:File) {
         try {
             val dir = File(cacheDir,"shared_audio")
             if (!dir.exists() && !dir.mkdirs()) error("تعذر تجهيز ملف المشاركة")
@@ -1200,6 +1662,48 @@ class MainActivity : Activity() {
             }
             startActivity(Intent.createChooser(send,"مشاركة الملف الصوتي"))
         } catch (e:Exception) { toast("تعذرت مشاركة الصوت: " + e.message) }
+    }
+
+    private fun shareHistoryRecord(item:GenerationRecord) {
+        val file = historyFile(item) ?: run { toast("ملف المقطع غير موجود"); return }
+        shareOutputFile(file)
+    }
+
+    private fun shareLastOutput() {
+        val file = findLastOutput() ?: run { toast("لا يوجد ملف صوتي للمشاركة"); return }
+        shareOutputFile(file)
+    }
+
+    private fun deleteHistoryRecord(item:GenerationRecord) {
+        AlertDialog.Builder(this)
+            .setTitle("حذف المقطع")
+            .setMessage("هل تريد حذف هذا المقطع من السجل والذاكرة الداخلية؟")
+            .setNegativeButton("إلغاء",null)
+            .setPositiveButton("حذف") { _,_ ->
+                historyFile(item)?.delete()
+                generationHistory.removeAll { it.id == item.id }
+                compareHistoryIds.remove(item.id)
+                if (lastOutput?.name == item.fileName) lastOutput = findLastOutput()
+                persistGenerationHistory()
+                refreshGenerationHistory()
+                toast("تم حذف المقطع")
+            }
+            .show()
+    }
+
+    private fun compareSelectedHistory() {
+        if (compareHistoryIds.size != 2) { toast("اختر مقطعين أولًا"); return }
+        val selected = generationHistory.filter { compareHistoryIds.contains(it.id) }
+        if (selected.size != 2) { toast("أحد المقطعين لم يعد موجودًا"); return }
+        val names = selected.mapIndexed { index,item ->
+            (if (index == 0) "A — " else "B — ") + item.text.take(48) + " (" + formatHistoryDuration(item.duration) + ")"
+        }
+        AlertDialog.Builder(this)
+            .setTitle("مقارنة A / B")
+            .setMessage("استمع إلى كل نتيجة بالتتابع وقارن النبرة والسرعة ومدى الالتزام بالنص.")
+            .setItems(names.toTypedArray()) { _,which -> playHistoryRecord(selected[which]) }
+            .setPositiveButton("تم",null)
+            .show()
     }
 
     override fun onStart() {
@@ -1241,7 +1745,8 @@ class MainActivity : Activity() {
                 } catch (e:Exception) { runOnUiThread { customVoiceStatus.text = "فشل فتح التسجيل: " + e.message } }
             }
             SAVE_OUTPUT -> {
-                val file = findLastOutput() ?: return
+                val file = pendingSaveFile?.takeIf { it.isFile } ?: findLastOutput() ?: return
+                pendingSaveFile = null
                 executor.execute {
                     try {
                         val output = contentResolver.openOutputStream(uri,"w") ?: error("تعذر فتح مكان الحفظ")
@@ -1362,10 +1867,92 @@ class MainActivity : Activity() {
         }
     }
 
+    private inner class NavIconView(
+        private val iconName:String,
+        tint:Int
+    ):View(this@MainActivity) {
+        private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = tint
+            style = Paint.Style.STROKE
+            strokeWidth = 1.9f
+            strokeCap = Paint.Cap.ROUND
+            strokeJoin = Paint.Join.ROUND
+        }
+        fun setTint(color:Int) {
+            stroke.color = color
+            invalidate()
+        }
+        override fun onDraw(canvas:Canvas) {
+            super.onDraw(canvas)
+            val unit = minOf(width,height).toFloat() / 24f
+            canvas.save()
+            canvas.translate((width - 24f*unit)/2f,(height - 24f*unit)/2f)
+            canvas.scale(unit,unit)
+            when (iconName) {
+                "settings" -> {
+                    canvas.drawCircle(12f,12f,3.1f,stroke)
+                    canvas.drawCircle(12f,12f,8.1f,stroke)
+                    for (i in 0 until 8) {
+                        val angle = Math.PI * i / 4.0
+                        canvas.drawLine(
+                            12f + kotlin.math.cos(angle).toFloat()*8.4f,
+                            12f + kotlin.math.sin(angle).toFloat()*8.4f,
+                            12f + kotlin.math.cos(angle).toFloat()*10.3f,
+                            12f + kotlin.math.sin(angle).toFloat()*10.3f,
+                            stroke
+                        )
+                    }
+                }
+                "wave" -> {
+                    val heights = floatArrayOf(5f,10f,15f,8f,13f,6f)
+                    heights.forEachIndexed { index,h ->
+                        val x = 3.5f + index*3.4f
+                        canvas.drawLine(x,12f-h/2f,x,12f+h/2f,stroke)
+                    }
+                }
+                "voice" -> {
+                    canvas.drawCircle(12f,7.5f,3.4f,stroke)
+                    val path = Path().apply {
+                        moveTo(4f,20f)
+                        cubicTo(4.5f,15.5f,8f,13.5f,12f,13.5f)
+                        cubicTo(16f,13.5f,19.5f,15.5f,20f,20f)
+                    }
+                    canvas.drawPath(path,stroke)
+                }
+                "play" -> {
+                    val path = Path().apply { moveTo(8f,5f); lineTo(19f,12f); lineTo(8f,19f); close() }
+                    canvas.drawPath(path,stroke)
+                }
+                "save" -> {
+                    canvas.drawRoundRect(RectF(4f,3f,20f,21f),2f,2f,stroke)
+                    canvas.drawLine(8f,3f,8f,9f,stroke)
+                    canvas.drawLine(16f,3f,16f,9f,stroke)
+                    canvas.drawLine(8f,14f,16f,14f,stroke)
+                    canvas.drawLine(8f,18f,16f,18f,stroke)
+                }
+                "share" -> {
+                    canvas.drawCircle(6f,12f,2.3f,stroke)
+                    canvas.drawCircle(18f,5f,2.3f,stroke)
+                    canvas.drawCircle(18f,19f,2.3f,stroke)
+                    canvas.drawLine(8f,11f,16f,6f,stroke)
+                    canvas.drawLine(8f,13f,16f,18f,stroke)
+                }
+                "delete" -> {
+                    canvas.drawRoundRect(RectF(6f,7f,18f,21f),1.5f,1.5f,stroke)
+                    canvas.drawLine(4f,5f,20f,5f,stroke)
+                    canvas.drawLine(9f,3f,15f,3f,stroke)
+                    canvas.drawLine(10f,10f,10f,18f,stroke)
+                    canvas.drawLine(14f,10f,14f,18f,stroke)
+                }
+            }
+            canvas.restore()
+        }
+    }
+
     private fun card() = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
         setPadding(dp(15),dp(15),dp(15),dp(15))
-        background = rounded(surface,19)
+        background = rounded(surface,19).apply { setStroke(dp(1),Color.rgb(220,235,233)) }
     }
     private fun label(text:String,size:Int,color:Int,bold:Boolean,top:Int=0) = TextView(this).apply {
         this.text = text

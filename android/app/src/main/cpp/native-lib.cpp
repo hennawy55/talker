@@ -44,7 +44,9 @@ Java_com_talker_offline_MainActivity_nativeLoad(JNIEnv* env, jobject, jstring mo
 
 extern "C" JNIEXPORT jfloatArray JNICALL
 Java_com_talker_offline_MainActivity_nativeGenerate(JNIEnv* env, jobject, jstring text,
-        jstring language, jfloatArray voice, jint voiceRate, jint voiceChannels, jstring referenceText) {
+        jstring language, jfloatArray voice, jint voiceRate, jint voiceChannels, jstring referenceText,
+        jint numSteps, jfloat guidanceScale, jfloat speed, jboolean denoise,
+        jboolean preprocessPrompt, jboolean postprocessOutput) {
     std::lock_guard<std::mutex> lock(g_mutex);
     if (!g_session) { g_error = "Engine is not loaded"; return nullptr; }
     const char* textChars = env->GetStringUTFChars(text, nullptr);
@@ -61,6 +63,20 @@ Java_com_talker_offline_MainActivity_nativeGenerate(JNIEnv* env, jobject, jstrin
             static_cast<size_t>(n / std::max(1, voiceChannels)), voiceRate, voiceChannels);
         if (st == AUDIOCPP_OK && refChars && *refChars)
             st = audiocpp_request_set_option(req, "reference_text", refChars);
+    }
+    if (st == AUDIOCPP_OK) {
+        const std::string steps_value = std::to_string(std::max(1, static_cast<int>(numSteps)));
+        const std::string guidance_value = std::to_string(std::max(0.0f, static_cast<float>(guidanceScale)));
+        const std::string speed_value = std::to_string(std::max(0.1f, static_cast<float>(speed)));
+        const char* denoise_value = denoise == JNI_TRUE ? "true" : "false";
+        const char* preprocess_value = preprocessPrompt == JNI_TRUE ? "true" : "false";
+        const char* postprocess_value = postprocessOutput == JNI_TRUE ? "true" : "false";
+        st = audiocpp_request_set_option(req, "num_inference_steps", steps_value.c_str());
+        if (st == AUDIOCPP_OK) st = audiocpp_request_set_option(req, "guidance_scale", guidance_value.c_str());
+        if (st == AUDIOCPP_OK) st = audiocpp_request_set_option(req, "speed", speed_value.c_str());
+        if (st == AUDIOCPP_OK) st = audiocpp_request_set_option(req, "denoise", denoise_value);
+        if (st == AUDIOCPP_OK) st = audiocpp_request_set_option(req, "preprocess_prompt", preprocess_value);
+        if (st == AUDIOCPP_OK) st = audiocpp_request_set_option(req, "postprocess_output", postprocess_value);
     }
     if (st == AUDIOCPP_OK) st = audiocpp_session_run(g_session, req, &result);
     env->ReleaseStringUTFChars(text, textChars);
