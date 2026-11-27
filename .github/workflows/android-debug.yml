@@ -1,4 +1,4 @@
-name: Android Debug APK
+name: Talker Android APK
 
 on:
   workflow_dispatch:
@@ -15,6 +15,10 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      TALKER_KEYSTORE_PASSWORD: ${{ secrets.TALKER_KEYSTORE_PASSWORD }}
+      TALKER_KEY_ALIAS: ${{ secrets.TALKER_KEY_ALIAS }}
+      TALKER_KEY_PASSWORD: ${{ secrets.TALKER_KEY_PASSWORD }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -25,25 +29,45 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      - name: Prepare persistent release signing key
+        env:
+          TALKER_KEYSTORE_BASE64: ${{ secrets.TALKER_KEYSTORE_BASE64 }}
+        run: |
+          test -n "$TALKER_KEYSTORE_BASE64" || (echo "Missing repository secret TALKER_KEYSTORE_BASE64" && exit 1)
+          test -n "$TALKER_KEYSTORE_PASSWORD" || (echo "Missing repository secret TALKER_KEYSTORE_PASSWORD" && exit 1)
+          test -n "$TALKER_KEY_ALIAS" || (echo "Missing repository secret TALKER_KEY_ALIAS" && exit 1)
+          test -n "$TALKER_KEY_PASSWORD" || (echo "Missing repository secret TALKER_KEY_PASSWORD" && exit 1)
+          echo "$TALKER_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/talker-release.jks"
+          test -s "$RUNNER_TEMP/talker-release.jks"
+          echo "TALKER_KEYSTORE_PATH=$RUNNER_TEMP/talker-release.jks" >> "$GITHUB_ENV"
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
 
-      - name: Build debug APK
+      - name: Build signed release APK
         working-directory: android
-        run: gradle --no-daemon --stacktrace assembleDebug
-
-      - name: Verify APK
+        env:
+          TALKER_KEYSTORE_PATH: ${{ runner.temp }}/talker-release.jks
         run: |
-          test -s android/app/build/outputs/apk/debug/app-debug.apk
-          ls -lh android/app/build/outputs/apk/debug/app-debug.apk
-          sha256sum android/app/build/outputs/apk/debug/app-debug.apk
+          gradle --no-daemon --stacktrace \
+            -PtalkerVersionCode="${{ github.run_number }}" \
+            -PtalkerVersionName="0.1.${{ github.run_number }}" \
+            assembleRelease
 
-      - name: Upload APK
+      - name: Verify APK and package metadata
+        run: |
+          APK=android/app/build/outputs/apk/release/app-release.apk
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | head -n 1
+          sha256sum "$APK"
+          ls -lh "$APK"
+
+      - name: Upload installable APK
         uses: actions/upload-artifact@v4
         with:
-          name: talker-android-debug
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: talker-android-release-v${{ github.run_number }}
+          path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 30
