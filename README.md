@@ -11,7 +11,6 @@ license: apache-2.0
 short_description: Egyptian Arabic and English text-to-speech
 models:
   - mohammedaly22/VoiceTut-TTS
-suggested_hardware: t4-small
 preload_from_hub:
   - mohammedaly22/VoiceTut-TTS
 ---
