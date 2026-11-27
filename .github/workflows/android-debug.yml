@@ -85,8 +85,8 @@ jobs:
         working-directory: android
         run: |
           gradle --no-daemon --stacktrace \
-            -PtalkerVersionCode="${{ github.run_number }}" \
-            -PtalkerVersionName="1.0.${{ github.run_number }}" \
+            -PtalkerVersionCode="\${{ github.run_number }}" \
+            -PtalkerVersionName="1.0.\${{ github.run_number }}" \
             assembleDebug
 
       - name: Verify APK and bundled native libraries
@@ -111,26 +111,7 @@ jobs:
       - name: Upload installable ARM64 APK
         uses: actions/upload-artifact@v4
         with:
-          name: talker-offline-arm64-v${{ github.run_number }}
-          path: android/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
-          retention-days: 30
-)
-          test "$VOICE_COUNT" -eq 19
-          unzip -l "$APK" | grep 'assets/licenses/THIRD_PARTY_NOTICES.txt'
-          unzip -p "$APK" lib/arm64-v8a/libaudiocpp.so > /tmp/libaudiocpp.so
-          readelf -d /tmp/libaudiocpp.so | tee /tmp/libaudiocpp-needed.txt
-          if readelf -d /tmp/libaudiocpp.so | grep -q 'libomp.so'; then
-            echo "APK contains libaudiocpp.so with missing libomp.so dependency"
-            exit 1
-          fi
-          sha256sum "$APK"
-          ls -lh "$APK"
-
-      - name: Upload installable ARM64 APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: talker-offline-arm64-v${{ github.run_number }}
+          name: talker-offline-arm64-v\${{ github.run_number }}
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
