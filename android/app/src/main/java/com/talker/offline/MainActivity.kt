@@ -63,7 +63,7 @@ class MainActivity : Activity() {
     private val executor = Executors.newSingleThreadExecutor()
     private val modelUrl = "https://huggingface.co/mohammedaly22/VoiceTut-TTS-GGUF/resolve/main/voicetut-tts-q8_0.gguf"
     private val modelName = "voicetut-tts-q8_0.gguf"
-    private val voiceBaseUrl = "https://raw.githubusercontent.com/MohammedAly22/VoiceTuT-TTS/main/reference_speakers/"
+    private val voiceBaseUrl = "https://raw.githubusercontent.com/MohammedAly22/VoiceTuT-TTS/44cba00cd3ddb04b5213353e19e960045e332da7/reference_speakers/"
     private val bg = Color.rgb(10,14,23)
     private val surface = Color.rgb(22,29,43)
     private val surface2 = Color.rgb(30,39,57)
