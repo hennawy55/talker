@@ -378,7 +378,7 @@ class MainActivity : Activity() {
     private fun wrapPage(content:LinearLayout):View = ScrollView(this).apply {
         isFillViewport = true
         clipToPadding = false
-        addView(content,ScrollView.LayoutParams(-1,-2))
+        addView(content,FrameLayout.LayoutParams(-1,-2))
     }
     private fun addSection(parent:LinearLayout,title:String,subtitle:String) {
         parent.addView(label(title,21,white,true))
