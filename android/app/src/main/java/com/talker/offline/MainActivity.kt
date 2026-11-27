@@ -815,7 +815,7 @@ class MainActivity : Activity() {
                 val audio = nativeGenerate(text,languageCode,ref,refRate,refChannels,if (ref != null) transcript else null)
                     ?: error(nativeLastError())
                 val rate = nativeSampleRate()
-                val out = File(filesDir,"audio-${System.currentTimeMillis()}.wav")
+                val out = File(filesDir, "audio-" + System.currentTimeMillis() + ".wav")
                 writeWav(out,audio,rate,1)
                 lastOutput = out
                 runOnUiThread {
