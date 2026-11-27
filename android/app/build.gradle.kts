@@ -13,14 +13,14 @@ android {
 
     defaultConfig {
         applicationId = "com.talker.offline"
-        minSdk = 26
+        minSdk = 28
         targetSdk = 35
         versionCode = talkerVersionCode
         versionName = talkerVersionName
         ndk { abiFilters += "arm64-v8a" }
         externalNativeBuild {
             cmake {
-                arguments += listOf("-DAUDIOCPP_SOURCE_DIR=${project.rootDir}/../third_party/audio.cpp")
+                arguments += listOf("-DAUDIOCPP_SOURCE_DIR=${project.rootDir}/../third_party/audio.cpp", "-DANDROID_PLATFORM=android-28")
                 cppFlags += listOf("-std=c++17")
             }
         }
